@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 WANT="${1:-}"
 DD="${DERIVED_DATA:-$HOME/Library/Developer/Xcode/DerivedData/RelightCam-cli}"
-BUNDLE=be.uantwerpen.jverlinden.relightcam1
+BUNDLE=be.uantwerpen.jverlinden.relightcam
 
 # prints: <coredevice id> <udid> <developer mode> <name>
 find_device() {
