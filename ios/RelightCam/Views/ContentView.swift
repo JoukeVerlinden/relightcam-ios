@@ -75,6 +75,7 @@ struct ContentView: View {
         .task {
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-autorun-textile") { await autorun(.textile) } else if args.contains("-autorun") { await autorun(.tablet) }
+            if args.contains("-open-help") { showHelp = true }
         }
         .alert("Something went wrong", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
             Button("OK", role: .cancel) {}
@@ -203,8 +204,11 @@ struct ProjectRow: View {
 
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
+    /// test hook -open-credits
+    @State private var openCredits = ProcessInfo.processInfo.arguments.contains("-open-credits")
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             List {
                 Section("What you need") {
                     Label("The iPhone on a tripod or copy stand, aimed at the object. It must not move.", systemImage: "camera.metering.center.weighted")
@@ -222,10 +226,27 @@ struct HelpView: View {
                     Text("For the highest quality, export the photos with the .lp file and process them in RelightLab on a desktop.")
                 }
                 Section("About") {
-                    Text("relightCam reimplements the capture-to-RTI pipeline of relight (cnr-isti-vclab/relight, CNR-ISTI Visual Computing Lab) natively for iOS: the same highlight detection, PTM/HSH bases and web format. Exports include the OpenLIME viewer (GPL-3.0). relightCam is GPL-3.0.")
-                        .font(.footnote)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Image("UAntwerpenLogo").resizable().scaledToFit().frame(height: 48)
+                            .accessibilityLabel("University of Antwerp")
+                        Text("relightCam is developed at the University of Antwerp. It reimplements the capture-to-RTI pipeline of relight (CNR-ISTI Visual Computing Lab) natively for iOS: the same highlight detection, PTM/HSH bases and web format.")
+                            .font(.footnote)
+                    }
+                    .padding(.vertical, 6)
+                    NavigationLink { CreditsView() } label: {
+                        Label("Credits and licenses", systemImage: "doc.text")
+                    }
+                    .id("credits")
                 }
             }
+            .onAppear {
+                // test hook -scroll-help
+                if ProcessInfo.processInfo.arguments.contains("-scroll-help") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { proxy.scrollTo("credits", anchor: .bottom) }
+                }
+            }
+            }
+            .navigationDestination(isPresented: $openCredits) { CreditsView() }
             .navigationTitle("How it works")
             .toolbar { Button("Done") { dismiss() } }
         }

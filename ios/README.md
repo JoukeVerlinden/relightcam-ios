@@ -158,6 +158,7 @@ swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ct/main.swift -o
 Simulator test hooks (launch arguments):
 - Pipeline and screens: `-autorun` / `-autorun-textile` (demo → detect → HSH build), `-open-viewer`,
   `-open-sphere`, `-open-capture`, `-open-cloth`, `-scroll-view`.
+- How it works and credits: `-open-help`, `-scroll-help`, `-open-credits`, `-open-license`.
 - 2D viewer: `-light x,y`, `-mode n`, `-animate-light`.
 - Cloth viewer: `-cloth-support board|dressForm|free`, `-cloth-form …`, `-cloth-material …`,
   `-cloth-grain deg`, `-cloth-light lamp|headlamp|orbit`, `-cloth-mode n`, `-cloth-open-settings`,
@@ -176,7 +177,8 @@ Simulator test hooks (launch arguments):
 
 ## License
 
-GPL-3.0 (see [`../LICENSE-GPL-3.0`](../LICENSE-GPL-3.0)). relightCam is an independent port and isn't affiliated
+GPL-3.0 (see [`../LICENSE-GPL-3.0`](../LICENSE-GPL-3.0)). The app's *How it works › Credits and licenses*
+page lists the components, their licenses and the methods, and includes the full GPL text. relightCam is an independent port and isn't affiliated
 with CNR-ISTI. It follows the algorithms and formats of [relight](https://github.com/cnr-isti-vclab/relight)
 (core LGPL-3.0, GPL-3.0 components) and bundles the [OpenLIME](https://github.com/cnr-isti-vclab/openlime)
 viewer (GPL-3.0, CNR-ISTI Visual Computing Lab and CRS4) in `RelightCam/WebViewer/`.
