@@ -1,4 +1,4 @@
-> **About this fork:** it adds **[RelightCam](ios/)**, an iPhone app that captures and builds RTIs on the
+> **About this fork:** it adds **[relightCam](ios/)**, an iPhone app that captures and builds RTIs on the
 > phone. You shoot a light sequence with a shiny sphere in view; the app detects the light directions, fits
 > PTM/HSH in relight's web format, and shows the result in a Metal viewer you can relight by dragging or by
 > tilting the phone. It is a Swift reimplementation of relight's pipeline (no Qt needed) and exports for

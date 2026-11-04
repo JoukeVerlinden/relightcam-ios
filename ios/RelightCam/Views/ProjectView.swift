@@ -106,7 +106,7 @@ struct ProjectView: View {
                 .disabled(project.meta.frames.isEmpty || exporting)
                 if exporting { ProgressView() }
             } header: { Text("Export") } footer: {
-                Text("Projects are also in the Files app under On My iPhone › RelightCam › Projects.")
+                Text("Projects are also in the Files app under On My iPhone › relightCam › Projects.")
             }
         }
         .navigationTitle(project.meta.name)

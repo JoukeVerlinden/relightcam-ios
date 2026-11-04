@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build RelightCam (Release) for a connected iPhone and install + launch it.
+# Build relightCam (Release) for a connected iPhone and install + launch it.
 #   tools/install.sh                     -> first reachable iPhone
 #   tools/install.sh "My iPhone"         -> a specific device by name (or CoreDevice identifier)
 # Waits up to 10 minutes for the phone (USB, or Wi-Fi on a network that allows device-to-device traffic).

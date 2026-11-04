@@ -74,7 +74,7 @@ struct CaptureView: View {
             case .running, .idle:
                 CameraPreview(camera: camera).ignoresSafeArea()
             case .denied:
-                message("Camera access is off", "Allow camera access for RelightCam in Settings → Privacy & Security → Camera.")
+                message("Camera access is off", "Allow camera access for relightCam in Settings → Privacy & Security → Camera.")
             case .failed(let s):
                 message("Camera unavailable", s + "\nYou can still import photos or generate a demo capture from the main screen.")
             }

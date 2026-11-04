@@ -1,4 +1,4 @@
-# RelightCam (iOS)
+# relightCam (iOS)
 
 This folder is part of a fork of [cnr-isti-vclab/relight](https://github.com/cnr-isti-vclab/relight).
 Run the commands below from this `ios/` folder.
@@ -63,7 +63,7 @@ Simulator test hooks (launch arguments): `-autorun` (demo → detect → HSH bui
 
 ## License
 
-GPL-3.0 (see [`../LICENSE-GPL-3.0`](../LICENSE-GPL-3.0)). RelightCam is an independent port and isn't affiliated with CNR-ISTI. It follows the
+GPL-3.0 (see [`../LICENSE-GPL-3.0`](../LICENSE-GPL-3.0)). relightCam is an independent port and isn't affiliated with CNR-ISTI. It follows the
 algorithms and formats of [relight](https://github.com/cnr-isti-vclab/relight) (core LGPL-3.0, GPL-3.0
 components) and bundles the [OpenLIME](https://github.com/cnr-isti-vclab/openlime) viewer (GPL-3.0, CNR-ISTI Visual Computing Lab
 and CRS4) in `RelightCam/WebViewer/`.

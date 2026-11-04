@@ -35,7 +35,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("RelightCam")
+            .navigationTitle("relightCam")
             .navigationDestination(for: Project.self) { ProjectView(project: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -213,7 +213,7 @@ struct HelpView: View {
                     Text("For the highest quality, export the photos with the .lp file and process them in RelightLab on a desktop.")
                 }
                 Section("About") {
-                    Text("RelightCam reimplements the capture-to-RTI pipeline of relight (cnr-isti-vclab/relight, CNR-ISTI Visual Computing Lab) natively for iOS: the same highlight detection, PTM/HSH bases and web format. Exports include the OpenLIME viewer (GPL-3.0). RelightCam is GPL-3.0.")
+                    Text("relightCam reimplements the capture-to-RTI pipeline of relight (cnr-isti-vclab/relight, CNR-ISTI Visual Computing Lab) natively for iOS: the same highlight detection, PTM/HSH bases and web format. Exports include the OpenLIME viewer (GPL-3.0). relightCam is GPL-3.0.")
                         .font(.footnote)
                 }
             }

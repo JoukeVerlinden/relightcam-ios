@@ -47,7 +47,7 @@ enum Exporter {
         }
         let rti = project.meta.rti
         let readme = """
-        RelightCam export — \(project.meta.name)
+        relightCam export — \(project.meta.name)
 
         info.json + plane_*.jpg   relight web format (type "\(rti?.basis.rawValue ?? "?")", colorspace "rgb"),
                                   \(rti?.width ?? 0)×\(rti?.height ?? 0), fitted from \(rti?.lightsUsed ?? 0) photos.

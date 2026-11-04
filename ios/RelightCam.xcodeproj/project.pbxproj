@@ -176,9 +176,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = RelightCam;
+				INFOPLIST_KEY_CFBundleDisplayName = relightCam;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSCameraUsageDescription = "RelightCam takes a series of photos under a moving light to build a relightable image (RTI).";
+				INFOPLIST_KEY_NSCameraUsageDescription = "relightCam takes a series of photos under a moving light to build a relightable image (RTI).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -208,9 +208,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = RelightCam;
+				INFOPLIST_KEY_CFBundleDisplayName = relightCam;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSCameraUsageDescription = "RelightCam takes a series of photos under a moving light to build a relightable image (RTI).";
+				INFOPLIST_KEY_NSCameraUsageDescription = "relightCam takes a series of photos under a moving light to build a relightable image (RTI).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
