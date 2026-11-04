@@ -1,12 +1,32 @@
 # Design note: 3D cloth viewer for historical textiles
 
-**Status: proposed, not implemented.** This describes a possible future viewer mode for relightCam.
+**Status: proposed, not implemented.** A second viewer inside relightCam, next to the existing RTI viewer,
+not a separate app.
 
 ## Goal
 
 Let a captured textile be draped, folded, hung or handled as a virtual 3D cloth, moved by touch or by tilting
 the phone, under a fixed or a moving light, while keeping its captured appearance. The focus is historical
 textiles and samples: silk floats, metal threads, tapestry weave, worn and irregular fragments.
+
+## Place in the app
+
+- **Same project, same data:** it opens the `rti/` folder (`info.json`, `plane_N.jpg`, `normals.png`) that
+  the build step already writes. There is no separate capture or processing step; projects built before
+  this viewer existed open in it too.
+- **Entry point:** in step 3 · View of the project screen, next to *Open relightable image* (the current 2D
+  viewer), add *Open in 3D cloth viewer*. The 2D viewer stays the default and the reference view.
+- **Shared code:**
+  - the PTM/HSH basis (`RTIBasis.weights`)
+  - plane loading and the Metal textures (`RTIMetalRenderer`)
+  - the tilt handling (CoreMotion gravity, re-center)
+  - the light indicator and the RTI / Specular / Shaded / Normals modes
+  New code goes in `Viewer/Cloth/` (simulation, mesh, 3D renderer and the SwiftUI screen).
+- **Consistent controls:** the same light dome indicator, gain slider and mode picker as the 2D viewer, plus
+  the cloth controls below. In the 3D viewer, tilt drives both gravity and the light, depending on the light
+  mode chosen.
+- **Per-project settings:** material preset, support type, warp direction, real scale and the cutout mask are
+  saved with the project (in `project.json`), so a sample opens the same way next time.
 
 ## Core idea: relight each point in its own frame
 

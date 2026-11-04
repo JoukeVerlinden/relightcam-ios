@@ -63,7 +63,7 @@ Simulator test hooks (launch arguments): `-autorun` (demo → detect → HSH bui
 
 ## Planned
 
-- [3D cloth viewer for historical textiles](docs/cloth-viewer.md): drape the RTI on a simulated cloth, move it by touch or tilt, under a fixed or moving light (design note, not implemented).
+- [3D cloth viewer for historical textiles](docs/cloth-viewer.md): a second viewer in the app that drapes the RTI on a simulated cloth, moved by touch or tilt, under a fixed or moving light (design note, not implemented).
 
 ## License
 
