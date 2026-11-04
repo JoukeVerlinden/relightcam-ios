@@ -64,6 +64,16 @@ struct ViewerView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
+            // recording hook: sweep the light around at a raking angle
+            if ProcessInfo.processInfo.arguments.contains("-animate-light") {
+                let t0 = Date()
+                Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { t in
+                    let a = Float(Date().timeIntervalSince(t0)) * 1.4 + 2.4
+                    let r: Float = 0.9
+                    model.light = SIMD3(r * cos(a), r * sin(a), (1 - r * r).squareRoot())
+                    if Date().timeIntervalSince(t0) > 30 { t.invalidate() }
+                }
+            }
             // test hooks: -light x,y  -mode n
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-light"), i + 1 < args.count {

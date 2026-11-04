@@ -31,6 +31,7 @@ struct ProjectView: View {
     @State private var showCloth = false
 
     var body: some View {
+        ScrollViewReader { proxy in
         List {
             Section {
                 HStack(spacing: 14) {
@@ -97,6 +98,7 @@ struct ProjectView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } header: { Text("3 · View") }
+            .id("view")
 
             Section {
                 Button { export { try Exporter.exportRTI(project) } } label: {
@@ -111,6 +113,13 @@ struct ProjectView: View {
             } header: { Text("Export") } footer: {
                 Text("Projects are also in the Files app under On My iPhone › relightCam › Projects.")
             }
+        }
+        .onAppear {
+            // recording hook: show the View section
+            if ProcessInfo.processInfo.arguments.contains("-scroll-view") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation { proxy.scrollTo("view", anchor: .center) } }
+            }
+        }
         }
         .navigationTitle(project.meta.name)
         .navigationBarTitleDisplayMode(.inline)
