@@ -117,6 +117,24 @@ script. It pairs the phone and registers it with your team (`-allowProvisioningD
 Wireless installs need a network that lets devices see each other (many university networks don't);
 the iPhone's Personal Hotspot works.
 
+## TestFlight
+
+The project is set up for App Store Connect: export-compliance answer in `Config/Info.plist`
+(`ITSAppUsesNonExemptEncryption` = NO, the app uses no encryption of its own), a privacy manifest
+(`RelightCam/PrivacyInfo.xcprivacy`: no tracking, no data collected), a 1024 px opaque icon, and
+automatic (cloud-managed) distribution signing.
+
+```bash
+tools/testflight.sh            # archive + signed .ipa in build/export (nothing is uploaded)
+tools/testflight.sh --upload   # archive + upload to App Store Connect
+```
+
+Every run gets a new build number (`yyMMddHHmm`). Before the first upload, create the app in
+[App Store Connect](https://appstoreconnect.apple.com) (*Apps › + › New App*, iOS, bundle ID
+`be.uantwerpen.jverlinden.relightcam`). That needs the App Manager or Admin role in the team. After
+Apple has processed a build (10–30 minutes), add testers under *TestFlight*. Internal testers (team
+members) can install right away; external testers need a short Beta App Review first.
+
 ## Tests
 
 ```bash
