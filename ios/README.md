@@ -64,8 +64,9 @@ did. Design note: [docs/cloth-viewer.md](docs/cloth-viewer.md).
 - **Dress forms:** modern, 1770s stays + panniers, 1860s corset + crinoline, 1880s bustle, 1920s straight.
   The forms are generated from cross-sections.
 - **Fabric:** silk, linen, wool and tapestry presets. **Grain angle**: 45° drapes on the bias.
-  **Tiling** (repeat or mirror-repeat a marked pattern region) for a full length of fabric; otherwise the
-  sample is shown at real size.
+  **Tiling** (repeat or mirror-repeat a marked pattern region) for a full length of fabric. Small samples
+  (under 50 cm) open with tiling on, repeating the largest region that avoids the calibration sphere; the
+  board always shows the sample itself at real size.
 - **Tools:** *Move* (drag the cloth, long-press to pin, tap a pin to remove it), *Pin* (drop a point onto
   the form to pin it there), *Smooth* (press the cloth onto the form by hand).
 - **Light:** a draggable dome. *Lamp* is fixed in the room, *Headlamp* follows the view, and *Orbit*
@@ -95,7 +96,9 @@ dress-form scene has about 6,400 points.
   rigidity from the **Peirce cantilever bending length** (1.2 cm silk, 3 cm linen, 2.5 cm wool, 7 cm
   tapestry). An overhang of twice the bending length droops to within 3.5° of the textile-standard 41.5°.
 
-On an iPhone 13 Pro the dress-form scene runs at 60 fps (simulation ≈12 ms per frame), also in AR.
+On an iPhone 13 Pro the dress-form scene runs at 60 fps (simulation ≈12 ms per frame), also in AR. The
+simulation runs on its own thread, so the controls and sheets stay responsive; the 3D view pauses while a
+sheet is open.
 
 The viewer is a visual study, not a prediction: the drape uses fabric presets, and views at an angle are
 approximated from a capture taken from straight above.

@@ -45,6 +45,8 @@ struct ClothMetalView: UIViewRepresentable {
     var resetCamera: Int
     var exportRequest: Int
     var arMode: Bool
+    /// a sheet is open on top: stop drawing and simulating so the sheet stays responsive
+    var suspended = false
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var renderer: ClothRenderer?
@@ -202,7 +204,8 @@ struct ClothMetalView: UIViewRepresentable {
         r.mode = mode.rawValue
         r.gain = gain
         r.paused = paused
-        c.setMotion(settings.tiltMode != .off && !arMode)
+        v.isPaused = suspended
+        c.setMotion(settings.tiltMode != .off && !arMode && !suspended)
         c.setAR(arMode)
         if c.last.recenter != recenter { c.last.recenter = recenter; r.recenterTilt() }
         if c.last.resetCloth != resetCloth { c.last.resetCloth = resetCloth; r.resetCloth() }

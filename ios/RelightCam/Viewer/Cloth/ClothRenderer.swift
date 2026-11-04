@@ -107,6 +107,67 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     private var frameTimes: [Double] = []
     var onStats: ((String) -> Void)?
 
+    // The simulation runs on its own serial queue; the main thread draws the latest finished step.
+    // Main-thread code never touches the simulation directly: it queues operations on `simQueue` and
+    // reads positions from `snapshot`.
+    private let simQueue = DispatchQueue(label: "relightcam.cloth.sim", qos: .userInteractive)
+    private var simInFlight = false
+    private struct Snapshot {
+        var verts: [SIMD4<Float>]       // per particle: position, normal, tangent, panel
+        var pinIndices: Set<Int>
+        var pinPositions: [SIMD3<Float>]
+        var ms: Double
+    }
+    private var snapshot: Snapshot?
+    private var grabTarget: SIMD3<Float>?
+    private var gravity = SIMD3<Float>(0, -9.81, 0)
+    private var pendingRebuild: (time: CFTimeInterval, resetCamera: Bool)?
+
+    private static func makeSnapshot(_ sim: ClothSimulation, ms: Double) -> Snapshot {
+        let (N, T) = sim.frames()
+        var v = [SIMD4<Float>](repeating: .zero, count: sim.count * 4)
+        for i in 0..<sim.count {
+            v[i * 4] = SIMD4(sim.pos[i], 1)
+            v[i * 4 + 1] = SIMD4(N[i], 0)
+            v[i * 4 + 2] = SIMD4(T[i], 0)
+            v[i * 4 + 3] = SIMD4(sim.panel[i].x, sim.panel[i].y, 0, 0)
+        }
+        let keys = Array(sim.pins.keys)
+        return Snapshot(verts: v, pinIndices: Set(keys), pinPositions: keys.map { sim.pos[$0] }, ms: ms)
+    }
+
+    private func snapshotPos(_ i: Int) -> SIMD3<Float> {
+        guard let s = snapshot, i * 4 < s.verts.count else { return .zero }
+        let v = s.verts[i * 4]
+        return SIMD3(v.x, v.y, v.z)
+    }
+
+    /// Runs `op` on the simulation thread, in order with the steps.
+    private func simOp(_ op: @escaping (ClothSimulation) -> Void) {
+        let sim = scene.sim
+        simQueue.async { op(sim) }
+    }
+
+    private func kickSimulation(dt: Float) {
+        guard !simInFlight else { return }
+        simInFlight = true
+        let sim = scene.sim
+        let g = gravity, target = grabTarget, run = !paused
+        simQueue.async { [weak self] in
+            let t0 = CACurrentMediaTime()
+            sim.gravity = g
+            if let target { sim.moveGrab(to: target) }
+            if run { sim.step(dt: dt) }
+            let ms = run ? (CACurrentMediaTime() - t0) * 1000 : 0
+            let snap = Self.makeSnapshot(sim, ms: ms)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.simInFlight = false
+                if sim === self.scene.sim { self.snapshot = snap }
+            }
+        }
+    }
+
     init(dir: URL, settings: ClothSettings, sampleSize: SIMD2<Float>, versoDir: URL?, view: MTKView) throws {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(), let q = device.makeCommandQueue() else {
             throw RelightError.invalid("Metal is not available")
@@ -186,8 +247,9 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         settings = s
         if k != sceneKey {
             sceneKey = k
-            scene = ClothScene.make(settings: s, sampleSize: sampleSize, mask: maskLookup)
-            installScene(resetCamera: supportChanged)
+            // a new support rebuilds at once; slider drags (panel size, grain) wait until they settle
+            let reset = supportChanged || (pendingRebuild?.resetCamera ?? false)
+            pendingRebuild = (supportChanged ? 0 : CACurrentMediaTime(), reset)
         }
         if s.tiltMode != .walkAround { walkBase = nil }
     }
@@ -237,7 +299,9 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
 
     /// Pins as stored in the project (only restored for the same scene layout).
     func currentPins() -> (pins: [ClothPin], key: String) {
-        (scene.sim.pins.map { ClothPin(particle: $0.key, x: $0.value.x, y: $0.value.y, z: $0.value.z) }, scene.pinsKey)
+        let sim = scene.sim, key = scene.pinsKey
+        let pins = simQueue.sync { sim.pins.map { ClothPin(particle: $0.key, x: $0.value.x, y: $0.value.y, z: $0.value.z) } }
+        return (pins, key)
     }
 
     private func installScene(resetCamera reset: Bool) {
@@ -258,6 +322,9 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             return (vb, ib, p.indices.count, SIMD4(p.color, 1), !p.exportable)
         }
         pinBuffer = device.makeBuffer(length: 512 * 16, options: .storageModeShared)
+        grabTarget = nil
+        drag = .none
+        snapshot = Self.makeSnapshot(sim, ms: 0)   // the new sim isn't running yet, so this is safe here
         if reset { resetCamera() }
     }
 
@@ -404,7 +471,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         if arEye == nil, settings.tiltMode == .room, let q = tiltRotation(scale: 1) {
             g = C * q.act(C.transpose * g)
         }
-        scene.sim.gravity = g
+        gravity = g
 
         if arEye == nil, settings.tiltMode == .walkAround, let u = tiltUp {
             if tiltRef == nil { tiltRef = u }
@@ -448,9 +515,13 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             arEye = SIMD3(c4.x, c4.y, c4.z) / c4.w
         }
         updateLight(dt: dt, arEye: arEye)
-        let t0 = CACurrentMediaTime()
-        if !paused { scene.sim.step(dt: dt > 0 ? dt : 1.0 / 60) }
-        let simMs = (CACurrentMediaTime() - t0) * 1000
+        if let p = pendingRebuild, now - p.time > 0.25 {
+            pendingRebuild = nil
+            scene = ClothScene.make(settings: settings, sampleSize: sampleSize, mask: maskLookup)
+            installScene(resetCamera: p.resetCamera)
+        }
+        kickSimulation(dt: dt > 0 ? dt : 1.0 / 60)
+        let simMs = snapshot?.ms ?? 0
 
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable else { return }
         inflight.wait()
@@ -465,19 +536,14 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let sim = scene.sim
         let vb = vbuffers[vIndex]
         vIndex = (vIndex + 1) % vbuffers.count
-        let (N, T) = sim.frames()
-        let ptr = vb.contents().bindMemory(to: SIMD4<Float>.self, capacity: sim.count * 4)
-        for i in 0..<sim.count {
-            ptr[i * 4] = SIMD4(sim.pos[i], 1)
-            ptr[i * 4 + 1] = SIMD4(N[i], 0)
-            ptr[i * 4 + 2] = SIMD4(T[i], 0)
-            ptr[i * 4 + 3] = SIMD4(sim.panel[i].x, sim.panel[i].y, 0, 0)
+        if let snap = snapshot {
+            snap.verts.withUnsafeBytes { memcpy(vb.contents(), $0.baseAddress!, min($0.count, vb.length)) }
         }
         var pinCount = 0
-        if let pb = pinBuffer {
+        if let pb = pinBuffer, let snap = snapshot {
             let pp = pb.contents().bindMemory(to: SIMD4<Float>.self, capacity: 512)
-            for (k, _) in sim.pins where pinCount < 512 {
-                pp[pinCount] = SIMD4(sim.pos[k], Float(16 * view.contentScaleFactor))
+            for p in snap.pinPositions where pinCount < 512 {
+                pp[pinCount] = SIMD4(p, Float(16 * view.contentScaleFactor))
                 pinCount += 1
             }
         }
@@ -605,7 +671,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         u[54] = gain
         u[55] = Float(mode)
         u[56] = settings.sheenEnabled ? 1 : 0
-        u[57] = (settings.useMask && maskLookup != nil && settings.tiling == .off) ? 1 : 0
+        u[57] = (settings.useMask && maskLookup != nil && scene.mapping.tiling == .off) ? 1 : 0
         u[58] = verso != nil ? 1 : 0
         u[59] = settings.showGrainline ? 1 : 0
         u[60] = Float(verso?.info.nCoeffs ?? 0)
@@ -640,7 +706,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let sim = scene.sim
         var cands: [(Int, CGFloat, Float)] = []
         for i in 0..<sim.count where sim.active[i] {
-            guard let s = screen(sim.pos[i]) else { continue }
+            guard let s = screen(snapshotPos(i)) else { continue }
             let d = hypot(s.pt.x - pt.x, s.pt.y - pt.y)
             if d < radius { cands.append((i, d, s.z)) }
         }
@@ -657,9 +723,13 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         if let i = pick(pt) {
             switch tool {
             case .move, .pin:
-                let z = screen(scene.sim.pos[i])?.z ?? 0.5
-                if scene.sim.pins[i] != nil { scene.sim.unpin(i) }
-                scene.sim.grab(i, target: scene.sim.pos[i])
+                let p = snapshotPos(i)
+                let z = screen(p)?.z ?? 0.5
+                grabTarget = p
+                simOp { sim in
+                    if sim.pins[i] != nil { sim.unpin(i) }
+                    sim.grab(i, target: p)
+                }
                 drag = .particle(i, z)
             case .smooth:
                 drag = .smooth
@@ -679,7 +749,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             pitch = min(1.45, max(-1.45, pitch + Float(delta.y) * 0.006))
             walkBase = nil
         case .particle(_, let z):
-            scene.sim.moveGrab(to: unproject(pt, z: z))
+            grabTarget = unproject(pt, z: z)
         case .smooth:
             smooth(at: pt)
         case .none:
@@ -697,12 +767,16 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
                     if let r = c.distance(p, margin: 0.05), r.d < 0.05, r.d < (best?.d ?? .infinity) { best = r }
                 }
                 if let b = best { p -= b.n * (b.d - scene.sim.thickness) }
-                scene.sim.release()
-                scene.sim.pin(i, at: p)
+                let target = p
+                simOp { sim in
+                    sim.release()
+                    sim.pin(i, at: target)
+                }
             } else {
-                scene.sim.release()
+                simOp { $0.release() }
             }
         }
+        grabTarget = nil
         drag = .none
     }
 
@@ -710,16 +784,18 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let hit = scene.sim.rigid ? nil : pick(pt, radius: 26)
         if hit == nil && isAR { placeAR(at: pt); return }
         guard let i = hit else { return }
-        if scene.sim.pins[i] != nil {
-            scene.sim.unpin(i)
+        if snapshot?.pinIndices.contains(i) == true {
+            simOp { $0.unpin(i) }
         } else if tool == .pin {
-            scene.sim.pin(i, at: scene.sim.pos[i])
+            let p = snapshotPos(i)
+            simOp { $0.pin(i, at: p) }
         }
     }
 
     func longPress(_ pt: CGPoint) {
         guard !scene.sim.rigid, let i = pick(pt) else { return }
-        scene.sim.pin(i, at: scene.sim.pos[i])
+        let p = snapshotPos(i)
+        simOp { $0.pin(i, at: p) }
     }
 
     func pinch(scale: Float) {
@@ -737,15 +813,17 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let sim = scene.sim
         var idx: [Int] = []
         for i in 0..<sim.count where sim.active[i] {
-            guard let s = screen(sim.pos[i]) else { continue }
+            guard let s = screen(snapshotPos(i)) else { continue }
             if hypot(s.pt.x - pt.x, s.pt.y - pt.y) < 40 { idx.append(i) }
         }
-        sim.smooth(idx)
+        simOp { $0.smooth(idx) }
     }
 
     // MARK: AR export
 
     func exportUSDZ(name: String) throws -> URL {
-        try USDZExporter.export(scene: scene, rtiDir: rtiDir, settings: settings, maskLookup: maskLookup, name: name)
+        // serialised with the simulation steps, so the drape can't change while it's being baked
+        let scene = self.scene, settings = self.settings, lookup = maskLookup, dir = rtiDir
+        return try simQueue.sync { try USDZExporter.export(scene: scene, rtiDir: dir, settings: settings, maskLookup: lookup, name: name) }
     }
 }

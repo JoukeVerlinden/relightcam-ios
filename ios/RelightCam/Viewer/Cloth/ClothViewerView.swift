@@ -2,6 +2,19 @@ import SwiftUI
 
 extension Project {
     /// Real size of the RTI image: from the sphere's known diameter, a manual override, or a 30 cm guess.
+    /// Largest rectangle of the image (normalized, v down) that keeps clear of the calibration sphere,
+    /// used as the default pattern-repeat region.
+    func defaultRepeatRect() -> [Double] {
+        guard let s = meta.sphere, meta.frameWidth > 0, meta.frameHeight > 0 else { return [0, 0, 1, 1] }
+        let fw = Double(meta.frameWidth), fh = Double(meta.frameHeight)
+        let m = 1.3
+        let x0 = max(0, (s.cx - s.r * m) / fw), x1 = min(1, (s.cx + s.r * m) / fw)
+        let y0 = max(0, (s.cy - s.r * m) / fh), y1 = min(1, (s.cy + s.r * m) / fh)
+        let candidates: [[Double]] = [[0, 0, x0, 1], [x1, 0, 1 - x1, 1], [0, 0, 1, y0], [0, y1, 1, 1 - y1]]
+        let best = candidates.filter { $0[2] > 0.2 && $0[3] > 0.2 }.max { $0[2] * $0[3] < $1[2] * $1[3] }
+        return best ?? [0, 0, 1, 1]
+    }
+
     func clothSampleSize(override: Double?) -> (size: SIMD2<Float>, note: String) {
         let fw = max(1, meta.frameWidth), fh = max(1, meta.frameHeight)
         let aspect = Float(fh) / Float(fw)
@@ -29,6 +42,15 @@ struct ClothViewerView: View {
     init(project: Project) {
         self.project = project
         var s = project.meta.cloth ?? ClothSettings()
+        if project.meta.cloth == nil && project.meta.source != "demo-textile" {
+            // small samples (most captures) only cover a patch of a form: repeat them into a length of fabric
+            if project.clothSampleSize(override: nil).size.x < 0.5 {
+                s.tiling = .repeating
+                s.repeatRect = project.defaultRepeatRect()
+                s.panelWidth = 1.0
+                s.panelHeight = 1.1
+            }
+        }
         if project.meta.cloth == nil && project.meta.source == "demo-textile" {
             // a length of the demo silk on the form: tile a seamless block of the pattern (3 × 2 motif repeats)
             s.material = .silk
@@ -76,7 +98,8 @@ struct ClothViewerView: View {
             ClothMetalView(dir: project.rtiDir, versoDir: versoDir, sampleSize: sample.size, model: model,
                            settings: model.settings, tool: model.tool, mode: model.mode, gain: model.gain,
                            paused: model.paused, recenter: model.recenter, resetCloth: model.resetCloth,
-                           resetCamera: model.resetCamera, exportRequest: model.exportRequest, arMode: model.arMode)
+                           resetCamera: model.resetCamera, exportRequest: model.exportRequest, arMode: model.arMode,
+                           suspended: showSettings || showMask || arItem != nil)
                 .id("\(model.settings.verso ?? "")|\(maskVersion)|\(sample.size)")
                 .ignoresSafeArea()
             if let e = model.error {
@@ -337,7 +360,7 @@ struct ClothSettingsView: View {
                         Slider(value: $model.settings.panelWidth, in: 0.2...1.6, step: 0.05)
                         LabeledContent("Panel height", value: String(format: "%.0f cm", model.settings.panelHeight * 100))
                         Slider(value: $model.settings.panelHeight, in: 0.2...1.6, step: 0.05)
-                        Text("The textile repeats over the panel. Mark one pattern repeat with the scissors tool (Repeat region).")
+                        Text("The textile repeats over the panel (on the dress form and free cloth; the board always shows the sample itself). Mark one pattern repeat with the scissors tool (Repeat region).")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } header: { Text("Fabric") }

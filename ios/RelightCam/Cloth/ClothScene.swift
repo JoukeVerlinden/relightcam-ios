@@ -66,11 +66,13 @@ struct ClothScene {
     static func make(settings: ClothSettings, sampleSize: SIMD2<Float>, mask: ((SIMD2<Float>) -> Bool)?) -> ClothScene {
         let grain = Float(settings.grainAngle * .pi / 180)
         let rr = settings.repeatRect.count == 4 ? SIMD4<Float>(settings.repeatRect.map { Float($0) }) : SIMD4(0, 0, 1, 1)
-        let mapping = TextureMapping(grainAngle: grain, tiling: settings.tiling, sampleSize: sampleSize, repeatRect: rr)
+        // the board stands for a mounted sample, so it always shows the sample itself
+        let tiling: ClothTiling = settings.support == .board ? .off : settings.tiling
+        let mapping = TextureMapping(grainAngle: grain, tiling: tiling, sampleSize: sampleSize, repeatRect: rr)
 
         // Panel: the rotated sample's bounding box, or the requested size when tiling.
         var panel: SIMD2<Float>
-        if settings.tiling == .off {
+        if tiling == .off {
             let c = abs(cos(grain)), s = abs(sin(grain))
             panel = SIMD2(sampleSize.x * c + sampleSize.y * s, sampleSize.x * s + sampleSize.y * c)
         } else {
@@ -89,7 +91,7 @@ struct ClothScene {
                 let p = SIMD2((Float(i) / Float(nx - 1) - 0.5) * panel.x, (0.5 - Float(j) / Float(ny - 1)) * panel.y)
                 let m = mapping.map(p)
                 var on = m.inside
-                if on, settings.tiling == .off, settings.useMask, let mask { on = mask(m.uv) }
+                if on, tiling == .off, settings.useMask, let mask { on = mask(m.uv) }
                 active[j * nx + i] = on
             }
         }
@@ -146,7 +148,7 @@ struct ClothScene {
             props.append(Self.cylinderY(x: 0, z: 0, radius: 0.2, y0: 0, y1: 0.02, color: SIMD3(0.25, 0.22, 0.2)))
             props.append(Self.floorPlane(y: 0, half: 1.6, color: SIMD3(0.42, 0.40, 0.38)))
             let bust = form.section(at: 1.24)
-            if settings.tiling == .off && size < 0.6 {
+            if tiling == .off && size < 0.6 {
                 // swatch: pin its top corners on the front of the form, above the bust
                 let y = min(form.yTop - 0.12, 1.24 + panel.y * 0.5)
                 let zFront = bust.zOff + bust.bf + 0.06

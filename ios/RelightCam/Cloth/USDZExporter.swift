@@ -21,7 +21,7 @@ enum USDZExporter {
         var color = [UInt8](repeating: 0, count: bw * bh * 4)
         var normal = [UInt8](repeating: 0, count: bw * bh * 4)
         let mp = scene.mapping
-        let useMask = settings.useMask && settings.tiling == .off
+        let useMask = settings.useMask && scene.mapping.tiling == .off
         func bilinear(_ px: [UInt8], _ uv: SIMD2<Float>, _ c: Int) -> Float {
             let x = min(Float(W - 1), max(0, uv.x * Float(W) - 0.5)), y = min(Float(H - 1), max(0, uv.y * Float(H) - 0.5))
             let x0 = Int(x), y0 = Int(y), x1 = min(W - 1, x0 + 1), y1 = min(H - 1, y0 + 1)

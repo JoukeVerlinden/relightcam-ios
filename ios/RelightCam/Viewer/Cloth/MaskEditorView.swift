@@ -25,6 +25,7 @@ struct MaskEditorView: View {
     @State private var busy: String?
     @State private var message: String?
     @State private var rectStart: CGPoint?
+    @State private var lastRefresh = Date.distantPast
 
     var body: some View {
         NavigationStack {
@@ -61,7 +62,7 @@ struct MaskEditorView: View {
                             let x1 = min(1, max(a.x, uv.x)), y1 = min(1, max(a.y, uv.y))
                             if x1 - x0 > 0.02 && y1 - y0 > 0.02 { repeatRect = [x0, y0, x1 - x0, y1 - y0] }
                         }
-                    }.onEnded { _ in rectStart = nil })
+                    }.onEnded { _ in rectStart = nil; refresh() })
                 }
                 VStack(spacing: 10) {
                     if let busy { ProgressView(busy) }
@@ -141,7 +142,8 @@ struct MaskEditorView: View {
                 if dx * dx + dy * dy <= r * r { mask[y * mw + x] = value }
             }
         }
-        refresh()
+        // redrawing the overlay on every touch event floods the main thread; 30 Hz is plenty
+        if Date().timeIntervalSince(lastRefresh) > 1.0 / 30 { refresh() }
     }
 
     private func fill(_ v: UInt8) {
@@ -212,6 +214,7 @@ struct MaskEditorView: View {
 
     private func refresh() {
         guard mw > 0 else { return }
+        lastRefresh = Date()
         var px = [UInt8](repeating: 0, count: mw * mh * 4)
         for i in 0..<(mw * mh) where mask[i] < 128 {
             px[i * 4] = 200; px[i * 4 + 1] = 30; px[i * 4 + 2] = 40; px[i * 4 + 3] = 150
