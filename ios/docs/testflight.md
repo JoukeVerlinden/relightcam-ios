@@ -18,10 +18,12 @@ No sphere or setup at hand? Use a demo capture: on the home screen, tap the impo
 4. Open it in the 3D cloth viewer: try the board, the dress forms and free cloth, pin and drag the cloth, the Outline and Repeat editor (scissors), and AR.
 5. Export an RTI, photos with a .lp file, or a 3D model.
 
-Please report anything that's confusing, slow or wrong, with a screenshot if you can.
+Please report anything that's confusing, slow or wrong, with a screenshot if you can (take a screenshot on the iPhone and TestFlight offers to send it as feedback).
 
 ## Other fields
 
 - Feedback email: jouke.verlinden@uantwerpen.be
 - Privacy policy URL: https://github.com/JoukeVerlinden/relightcam-ios/blob/relightcam/ios/PRIVACY.md
 - Sign-in required: no
+- Review notes: no account needed, works offline; without a sphere and lamp, use the import button › Demo capture: silk textile, then open the project in both viewers. AR needs a floor or table in view.
+- External group: Students (public link, open to anyone, no tester limit). First build submitted for Beta App Review on 4 November 2026.
