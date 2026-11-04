@@ -5,7 +5,7 @@ not a separate app.
 
 ## Goal
 
-Let a captured textile be draped, folded, hung or handled as a virtual 3D cloth, moved by touch or by tilting
+Let a captured textile be draped, folded, hung, pinned on a dress form or handled as a virtual 3D cloth, moved by touch or by tilting
 the phone, under a fixed or a moving light, while keeping its captured appearance. The focus is historical
 textiles and samples: silk floats, metal threads, tapestry weave, worn and irregular fragments.
 
@@ -97,6 +97,50 @@ drapes or reflects.
 - **Reverse side:** if recto and verso were captured as two RTIs, show the verso on back faces (the reverse
   of a sample often shows floats and repairs). Otherwise show a neutral textile color.
 
+## Draping on a dress form (virtual moulage)
+
+Drape the captured textile on a dressmaker's form and pin it, the way a garment is draped in moulage.
+
+### The form
+- **Generated, not imported:** build the form from a few elliptical cross-sections (neck, shoulders, bust,
+  waist, hips) lofted into a smooth surface. No third-party 3D assets are needed, and sizes are parameters.
+- **Period silhouettes:** presets for historical body shapes, e.g. an 18th-century stays torso, a
+  mid-19th-century corseted waist, a bustle-era back, a straight 1920s form. Seeing a fabric on the shape it
+  was made for is what makes this interesting for historical textiles.
+- **Collision:** the cloth collides with the form through a precomputed signed distance field (SDF), with
+  friction so the fabric can rest on the shoulders instead of sliding off.
+- **Covering:** the form is rendered as a neutral linen cover; it receives shadows from the cloth.
+
+### Pins
+- **Placing:** long-press the cloth, then tap the form, and a pin joins that cloth point to that spot on the
+  form. Pins are stored in the form's coordinates, so they follow when the form turns.
+- **Editing:** drag a pin to move it, tap it to remove it; pins show as small pinheads.
+- **Smoothing:** a smoothing stroke presses the fabric against the form along the stroke, like a hand
+  smoothing cloth while draping.
+- **Usual order:** center front, then shoulder, then waist, then let the rest fall.
+
+### Grain and bias
+The cloth model already has separate warp and weft stiffness. Rotating the fabric relative to the form (with
+a visible grainline) gives bias draping for free: at 45° the cloth is stretchier and clings more, as real
+fabric does. Showing the grainline on the cloth makes straight-grain versus bias cutting visible, which
+matters for studying historical cutting.
+
+### Two honest problems
+1. **Size:** samples are often about 10 cm across; a form needs about a metre of fabric. Options:
+   - **Repeat the textile** to make a larger cloth. The user marks one pattern repeat (many weaves and
+     printed or woven patterns have one), and the app tiles it; seams between tiles may show and should be
+     visible as such.
+   - **Pin it as a swatch:** keep the sample at real size and pin it on the form to judge it in context.
+2. **Computing power:** wrapping a body needs a finer cloth (about 150×150 particles or more), and folds that
+   touch need cloth-against-cloth collision (spatial hashing). This should run in Metal compute;
+   self-collision can come last.
+
+### Interaction
+- Turntable: one finger on the background rotates the form; pinch to zoom.
+- Tilt walks around the form (it orbits the camera) or tilts gravity, depending on the mode chosen.
+- Light: fixed in the room, finger-controlled, or orbiting, as in the other modes.
+- AR export of the draped result (phase 5), so the virtual garment can stand on a real table.
+
 ## Phases
 
 1. **Rigid sample board in 3D:** perspective camera; tilt or orbit a flat plane; local-frame RTI evaluation;
@@ -107,6 +151,8 @@ drapes or reflects.
 5. Optional: AR. Bake a draped snapshot to USDZ with a PBR material (albedo, normal map from photometric
    stereo, estimated roughness) to place on a real table with AR Quick Look. This is less faithful than the
    RTI viewer, because AR viewers can't evaluate an RTI.
+6. **Dress form draping:** generated form with period silhouette presets and SDF collision, pins and
+   smoothing, grainline and bias, repeat tiling or swatch mode, then cloth self-collision.
 
 ## Open questions
 
@@ -116,3 +162,5 @@ drapes or reflects.
 - Typical sample size, and whether the samples are fragile fragments or complete pieces (sets the default
   supports and presets).
 - Audience: research/conservation (show the limits and measurements) or public display (simpler controls).
+- For draping: which periods and silhouettes are needed first, and does the user prefer tiling a repeat or
+  pinning samples as swatches?
