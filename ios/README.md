@@ -135,7 +135,7 @@ tools/testflight.sh --upload   # archive + upload to App Store Connect
 
 Every run gets a new build number (`yyMMddHHmm`). Before the first upload, create the app in
 [App Store Connect](https://appstoreconnect.apple.com) (*Apps › + › New App*, iOS, bundle ID
-`be.uantwerpen.jverlinden.relightcam`). That needs the App Manager or Admin role in the team. After
+`be.uantwerpen.jverlinden.relightcam1`). That needs the App Manager or Admin role in the team. After
 Apple has processed a build (10–30 minutes), add testers under *TestFlight*. Internal testers (team
 members) can install right away; external testers need a short Beta App Review first.
 
