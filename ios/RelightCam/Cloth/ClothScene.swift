@@ -130,6 +130,8 @@ struct ClothScene {
             dist = size * 1.7
         case .free:
             place = { SIMD3($0.x, $0.y, 0) }
+            // floor (hidden in AR, where it only catches shadows) at the height the AR view hangs the cloth
+            props.append(Self.floorPlane(y: -(panel.y * 0.5 + 0.15), half: max(1, size * 1.5), color: SIMD3(0.30, 0.29, 0.28)))
             autoPins = [(SIMD2(-panel.x * 0.5, panel.y * 0.5), nil), (SIMD2(panel.x * 0.5, panel.y * 0.5), nil)]
             target = SIMD3(0, -panel.y * 0.05, 0)
             fit = SIMD2(panel.x * 0.5 + 0.05, panel.y * 0.62)

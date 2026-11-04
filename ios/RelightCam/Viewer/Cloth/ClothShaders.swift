@@ -230,6 +230,33 @@ fragment float4 propFS(POut in [[stage_in]], constant U& u [[buffer(1)]], consta
     return float4(color.rgb * (0.22 + 0.78 * d), 1);
 }
 
+// AR: the camera image as background (BT.601 full-range Y'CbCr from ARKit)
+struct BGOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex BGOut bgVS(uint vid [[vertex_id]], constant float4* q [[buffer(0)]]) {
+    BGOut o;
+    o.position = float4(q[vid].xy, 1.0, 1.0);
+    o.uv = q[vid].zw;
+    return o;
+}
+
+fragment float4 bgFS(BGOut in [[stage_in]], texture2d<float> yTex [[texture(0)]], texture2d<float> cTex [[texture(1)]]) {
+    constexpr sampler s(filter::linear, address::clamp_to_edge);
+    float y = yTex.sample(s, in.uv).r;
+    float2 c = cTex.sample(s, in.uv).rg - 0.5;
+    float3 rgb = float3(y + 1.402 * c.y, y - 0.344136 * c.x - 0.714136 * c.y, y + 1.772 * c.x);
+    return float4(saturate(rgb), 1);
+}
+
+// AR: invisible floor that only darkens where the cloth and form cast shadows
+fragment float4 catcherFS(POut in [[stage_in]], constant U& u [[buffer(1)]], depth2d<float> shadow [[texture(3)]]) {
+    float sh = shadowAt(shadow, in.lpos, u.params3.w * 2.0);
+    return float4(0, 0, 0, (1.0 - sh) * 0.5);
+}
+
 struct PinOut {
     float4 position [[position]];
     float size [[point_size]];

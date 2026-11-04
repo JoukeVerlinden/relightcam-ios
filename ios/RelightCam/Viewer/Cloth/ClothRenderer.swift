@@ -1,4 +1,5 @@
 import MetalKit
+import ARKit
 import simd
 
 extension simd_float4x4 {
@@ -12,6 +13,24 @@ extension simd_float4x4 {
         let f = simd_normalize(target - eye), s = simd_normalize(simd_cross(f, up)), u = simd_cross(s, f)
         return simd_float4x4(columns: (SIMD4(s.x, u.x, -f.x, 0), SIMD4(s.y, u.y, -f.y, 0), SIMD4(s.z, u.z, -f.z, 0),
                                        SIMD4(-simd_dot(s, eye), -simd_dot(u, eye), simd_dot(f, eye), 1)))
+    }
+
+    static func translation(_ v: SIMD3<Float>) -> simd_float4x4 {
+        var m = matrix_identity_float4x4
+        m.columns.3 = SIMD4(v, 1)
+        return m
+    }
+
+    static func rotationY(_ a: Float) -> simd_float4x4 {
+        simd_float4x4(columns: (SIMD4(cos(a), 0, -sin(a), 0), SIMD4(0, 1, 0, 0), SIMD4(sin(a), 0, cos(a), 0), SIMD4(0, 0, 0, 1)))
+    }
+
+    static func rotationX(_ a: Float) -> simd_float4x4 {
+        simd_float4x4(columns: (SIMD4(1, 0, 0, 0), SIMD4(0, cos(a), sin(a), 0), SIMD4(0, -sin(a), cos(a), 0), SIMD4(0, 0, 0, 1)))
+    }
+
+    static func scale(_ k: Float) -> simd_float4x4 {
+        simd_float4x4(diagonal: SIMD4(k, k, k, 1))
     }
 
     static func ortho(_ l: Float, _ r: Float, _ b: Float, _ t: Float, _ n: Float, _ f: Float) -> simd_float4x4 {
@@ -66,7 +85,20 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     private var vIndex = 0
     private var indexBuffer: MTLBuffer?
     private var indexCount = 0
-    private var props: [(vb: MTLBuffer, ib: MTLBuffer, count: Int, color: SIMD4<Float>)] = []
+    private var props: [(vb: MTLBuffer, ib: MTLBuffer, count: Int, color: SIMD4<Float>, floor: Bool)] = []
+
+    // AR: the same cloth and renderer over the camera image, anchored on a real surface
+    private(set) var arSession: ARSession?
+    private var textureCache: CVMetalTextureCache?
+    private var bgPipeline: MTLRenderPipelineState!
+    private var catcherPipeline: MTLRenderPipelineState!
+    private var arAnchor: simd_float4x4?
+    var arYaw: Float = 0
+    var arScale: Float = 1
+    private var arModel = matrix_identity_float4x4
+    var onARHint: ((String?) -> Void)?
+    private var lastHint: String?? = .none
+    var isAR: Bool { arSession != nil }
     private var pinBuffer: MTLBuffer?
     private let inflight = DispatchSemaphore(value: 3)
     private var lastTime = CACurrentMediaTime()
@@ -120,6 +152,19 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         pinPipeline = try pipe("pinVS", "pinFS", color: true, samples: n)
         shadowClothPipeline = try pipe("clothShadowVS", nil, color: false, samples: 1)
         shadowPropPipeline = try pipe("propShadowVS", nil, color: false, samples: 1)
+        bgPipeline = try pipe("bgVS", "bgFS", color: true, samples: n)
+        let cd = MTLRenderPipelineDescriptor()
+        cd.vertexFunction = lib.makeFunction(name: "propVS")
+        cd.fragmentFunction = lib.makeFunction(name: "catcherFS")
+        cd.colorAttachments[0].pixelFormat = view.colorPixelFormat
+        cd.colorAttachments[0].isBlendingEnabled = true
+        cd.colorAttachments[0].sourceRGBBlendFactor = .sourceAlpha
+        cd.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+        cd.colorAttachments[0].sourceAlphaBlendFactor = .one
+        cd.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        cd.depthAttachmentPixelFormat = .depth32Float
+        cd.rasterSampleCount = n
+        catcherPipeline = try device.makeRenderPipelineState(descriptor: cd)
         let dl = MTLDepthStencilDescriptor()
         dl.depthCompareFunction = .less
         dl.isDepthWriteEnabled = true
@@ -157,6 +202,8 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     }
 
     func resetCamera() {
+        arYaw = 0
+        arScale = 1
         target = scene.cameraTarget
         distance = scene.cameraDistance
         yaw = scene.cameraYaw
@@ -208,10 +255,100 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             }
             guard let vb = device.makeBuffer(bytes: v, length: v.count * 16, options: .storageModeShared),
                   let ib = device.makeBuffer(bytes: p.indices, length: p.indices.count * 4, options: .storageModeShared) else { return nil }
-            return (vb, ib, p.indices.count, SIMD4(p.color, 1))
+            return (vb, ib, p.indices.count, SIMD4(p.color, 1), !p.exportable)
         }
         pinBuffer = device.makeBuffer(length: 512 * 16, options: .storageModeShared)
         if reset { resetCamera() }
+    }
+
+    // MARK: AR
+
+    /// Starts world tracking; the scene is placed on the first horizontal surface found at the screen centre.
+    func startAR() -> Bool {
+        guard ARWorldTrackingConfiguration.isSupported else { return false }
+        let session = ARSession()
+        let config = ARWorldTrackingConfiguration()
+        config.planeDetection = [.horizontal]
+        session.run(config)
+        arSession = session
+        arAnchor = nil
+        arYaw = 0
+        arScale = 1
+        CVMetalTextureCacheCreate(nil, nil, device, nil, &textureCache)
+        return true
+    }
+
+    func stopAR() {
+        arSession?.pause()
+        arSession = nil
+        arAnchor = nil
+        textureCache = nil
+        needsFit = true
+        reportHint(nil)
+    }
+
+    private func reportHint(_ h: String?) {
+        if case .some(let last) = lastHint, last == h { return }
+        lastHint = .some(h)
+        onARHint?(h)
+    }
+
+    /// How each support stands in the room: a board lies flat like a sample on a table, free cloth hangs from
+    /// its pins in the air, the dress form stands on the floor.
+    private func supportTransform() -> simd_float4x4 {
+        switch settings.support {
+        case .board: return .translation(SIMD3(0, 0.006, 0)) * .rotationX(-.pi / 2)
+        case .free: return .translation(SIMD3(0, scene.panelSize.y * 0.5 + 0.15, 0))
+        case .dressForm: return matrix_identity_float4x4
+        }
+    }
+
+    /// Places the scene where a ray through `imagePoint` (normalized image coordinates) hits a horizontal surface.
+    @discardableResult
+    private func placeAR(frame: ARFrame, imagePoint: CGPoint) -> Bool {
+        guard let session = arSession else { return false }
+        let q = frame.raycastQuery(from: imagePoint, allowing: .estimatedPlane, alignment: .horizontal)
+        guard let hit = session.raycast(q).first else { return false }
+        let p = hit.worldTransform.columns.3
+        let cam = frame.camera.transform.columns.3
+        let facing = atan2(cam.x - p.x, cam.z - p.z)   // the scene's front (+z) faces the camera
+        arAnchor = .translation(SIMD3(p.x, p.y, p.z)) * .rotationY(facing)
+        arYaw = 0
+        return true
+    }
+
+    func placeAR(at screenPoint: CGPoint) {
+        guard let f = arSession?.currentFrame, viewSize.width > 0 else { return }
+        let orient = UIInterfaceOrientation.portrait
+        let t = f.displayTransform(for: currentOrientation ?? orient, viewportSize: viewSize).inverted()
+        let ip = CGPoint(x: screenPoint.x / viewSize.width, y: screenPoint.y / viewSize.height).applying(t)
+        placeAR(frame: f, imagePoint: ip)
+    }
+
+    private var currentOrientation: UIInterfaceOrientation?
+    private var bgQuad: [SIMD4<Float>] = []
+    private var bgY: MTLTexture?
+    private var bgC: MTLTexture?
+    private var bgRetain: [CVMetalTexture] = []
+
+    private func updateCamera(_ f: ARFrame, orientation: UIInterfaceOrientation) {
+        let pb = f.capturedImage
+        guard let cache = textureCache, CVPixelBufferGetPlaneCount(pb) >= 2 else { return }
+        func tex(_ plane: Int, _ fmt: MTLPixelFormat) -> (MTLTexture?, CVMetalTexture?) {
+            var cv: CVMetalTexture?
+            CVMetalTextureCacheCreateTextureFromImage(nil, cache, pb, nil, fmt, CVPixelBufferGetWidthOfPlane(pb, plane),
+                                                      CVPixelBufferGetHeightOfPlane(pb, plane), plane, &cv)
+            return (cv.flatMap { CVMetalTextureGetTexture($0) }, cv)
+        }
+        let y = tex(0, .r8Unorm), c = tex(1, .rg8Unorm)
+        bgY = y.0
+        bgC = c.0
+        bgRetain = [y.1, c.1].compactMap { $0 }
+        let t = f.displayTransform(for: orientation, viewportSize: viewSize).inverted()
+        bgQuad = [(-1, -1), (1, -1), (-1, 1), (1, 1)].map { (x: Float, yy: Float) -> SIMD4<Float> in
+            let uv = CGPoint(x: CGFloat((x + 1) / 2), y: CGFloat((1 - yy) / 2)).applying(t)
+            return SIMD4(x, yy, Float(uv.x), Float(uv.y))
+        }
     }
 
     // MARK: camera & light
@@ -240,7 +377,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         return simd_quatf(angle: angle, axis: axis / s)
     }
 
-    private func updateLight(dt: Float) {
+    private func updateLight(dt: Float, arEye: SIMD3<Float>? = nil) {
         let el = Float(settings.lightElevation * .pi / 180)
         var az = Float(settings.lightAzimuth * .pi / 180)
         if settings.lightMode == .orbit {
@@ -249,24 +386,27 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         }
         let C = cameraBasis()
         var L: SIMD3<Float>
-        if settings.lightMode == .headlamp {
+        if settings.lightMode == .headlamp, let e = arEye {
+            // AR: the light comes from the phone, like holding a torch
+            L = e - scene.boundsCenter
+        } else if settings.lightMode == .headlamp {
             L = C * SIMD3(cos(el) * cos(az), cos(el) * sin(az), sin(el))
         } else {
             let f = scene.lightFrame
             L = cos(el) * cos(az) * f.right + cos(el) * sin(az) * f.up + sin(el) * f.axis
         }
-        if settings.tiltMode == .room, let q = tiltRotation(scale: 2) {
+        if arEye == nil, settings.tiltMode == .room, let q = tiltRotation(scale: 2) {
             L = C * q.act(C.transpose * L)
         }
         lightWorld = simd_normalize(L)
 
         var g = SIMD3<Float>(0, -9.81, 0)
-        if settings.tiltMode == .room, let q = tiltRotation(scale: 1) {
+        if arEye == nil, settings.tiltMode == .room, let q = tiltRotation(scale: 1) {
             g = C * q.act(C.transpose * g)
         }
         scene.sim.gravity = g
 
-        if settings.tiltMode == .walkAround, let u = tiltUp {
+        if arEye == nil, settings.tiltMode == .walkAround, let u = tiltUp {
             if tiltRef == nil { tiltRef = u }
             if walkBase == nil { walkBase = (yaw, pitch) }
             let u0 = tiltRef!
@@ -286,7 +426,28 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let dt = Float(min(1.0 / 30, max(0, now - lastTime)))
         lastTime = now
         viewSize = view.bounds.size
-        updateLight(dt: dt)
+        let orientation = view.window?.windowScene?.interfaceOrientation ?? .portrait
+        currentOrientation = orientation
+        var arVP: simd_float4x4?
+        var arEye: SIMD3<Float>?
+        if let session = arSession, let f = session.currentFrame {
+            updateCamera(f, orientation: orientation)
+            if arAnchor == nil, case .normal = f.camera.trackingState {
+                placeAR(frame: f, imagePoint: CGPoint(x: 0.5, y: 0.5))
+            }
+            if arAnchor == nil {
+                reportHint("Move your iPhone slowly to find the floor or a table…")
+            } else {
+                reportHint("Tap a surface to move it · drag around it to turn · pinch to scale")
+            }
+            arModel = (arAnchor ?? .translation(SIMD3(0, -10, 0))) * .rotationY(arYaw) * .scale(arScale) * supportTransform()
+            let viewM = f.camera.viewMatrix(for: orientation)
+            let proj = f.camera.projectionMatrix(for: orientation, viewportSize: viewSize, zNear: 0.01, zFar: 40)
+            arVP = proj * viewM * arModel
+            let c4 = arModel.inverse * f.camera.transform.columns.3
+            arEye = SIMD3(c4.x, c4.y, c4.z) / c4.w
+        }
+        updateLight(dt: dt, arEye: arEye)
         let t0 = CACurrentMediaTime()
         if !paused { scene.sim.step(dt: dt > 0 ? dt : 1.0 / 60) }
         let simMs = (CACurrentMediaTime() - t0) * 1000
@@ -294,7 +455,11 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         guard let rpd = view.currentRenderPassDescriptor, let drawable = view.currentDrawable else { return }
         inflight.wait()
         guard let cb = queue.makeCommandBuffer() else { inflight.signal(); return }
-        cb.addCompletedHandler { [weak self] _ in self?.inflight.signal() }
+        let retained = bgRetain
+        cb.addCompletedHandler { [weak self] _ in
+            _ = retained   // keep the camera textures alive until the GPU is done
+            self?.inflight.signal()
+        }
 
         // vertices
         let sim = scene.sim
@@ -321,9 +486,8 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         let size = view.drawableSize
         if needsFit && size.width > 0 { fitCamera(aspect: Float(size.width / max(1, size.height))) }
         let proj = simd_float4x4.perspective(fovy: 0.75, aspect: Float(size.width / max(1, size.height)), near: 0.01, far: 30)
-        let e = eye()
-        let viewM = simd_float4x4.lookAt(eye: e, target: target, up: SIMD3(0, 1, 0))
-        let vp = proj * viewM
+        let e = arEye ?? eye()
+        let vp = arVP ?? proj * simd_float4x4.lookAt(eye: e, target: target, up: SIMD3(0, 1, 0))
         lastViewProj = vp
         let R = scene.boundsRadius, c = scene.boundsCenter
         let L = lightWorld
@@ -365,14 +529,34 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             enc.setVertexBytes(&u, length: u.count * 4, index: 1)
             enc.setFragmentBytes(&u, length: u.count * 4, index: 1)
             enc.setFragmentTexture(shadowTex, index: 3)
+            if isAR, let y = bgY, let c = bgC, bgQuad.count == 4 {
+                enc.setRenderPipelineState(bgPipeline)
+                enc.setDepthStencilState(depthAlways)
+                var quad = bgQuad
+                enc.setVertexBytes(&quad, length: 64, index: 0)
+                enc.setFragmentTexture(y, index: 0)
+                enc.setFragmentTexture(c, index: 1)
+                enc.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                enc.setDepthStencilState(depthLess)
+                enc.setFragmentTexture(shadowTex, index: 3)
+            }
+            let showScene = !isAR || arAnchor != nil
             enc.setRenderPipelineState(propPipeline)
-            for p in props {
+            for p in props where showScene && !(isAR && p.floor) {
                 var col = p.color
                 enc.setVertexBuffer(p.vb, offset: 0, index: 0)
                 enc.setFragmentBytes(&col, length: 16, index: 2)
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: p.count, indexType: .uint32, indexBuffer: p.ib, indexBufferOffset: 0)
             }
-            if let ib = indexBuffer {
+            if isAR && showScene {
+                // real floor: only the shadows are drawn
+                enc.setRenderPipelineState(catcherPipeline)
+                for p in props where p.floor {
+                    enc.setVertexBuffer(p.vb, offset: 0, index: 0)
+                    enc.drawIndexedPrimitives(type: .triangle, indexCount: p.count, indexType: .uint32, indexBuffer: p.ib, indexBufferOffset: 0)
+                }
+            }
+            if let ib = indexBuffer, showScene {
                 enc.setRenderPipelineState(clothPipeline)
                 enc.setVertexBuffer(vb, offset: 0, index: 0)
                 enc.setFragmentTexture(front.planes, index: 0)
@@ -381,7 +565,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
                 enc.setFragmentTexture(verso?.planes ?? front.planes, index: 4)
                 enc.drawIndexedPrimitives(type: .triangle, indexCount: indexCount, indexType: .uint32, indexBuffer: ib, indexBufferOffset: 0)
             }
-            if pinCount > 0, let pb = pinBuffer {
+            if pinCount > 0, showScene, let pb = pinBuffer {
                 enc.setRenderPipelineState(pinPipeline)
                 enc.setDepthStencilState(depthAlways)
                 enc.setVertexBuffer(pb, offset: 0, index: 0)
@@ -465,11 +649,11 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         return frontLayer.min { $0.1 < $1.1 }?.0
     }
 
-    private enum Drag { case none, orbit, particle(Int, Float), smooth }
+    private enum Drag { case none, orbit, arTurn, particle(Int, Float), smooth }
     private var drag: Drag = .none
 
     func touchBegan(_ pt: CGPoint) {
-        if scene.sim.rigid { drag = .orbit; return }
+        if scene.sim.rigid { drag = isAR ? .arTurn : .orbit; return }
         if let i = pick(pt) {
             switch tool {
             case .move, .pin:
@@ -482,12 +666,14 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
                 smooth(at: pt)
             }
         } else {
-            drag = .orbit
+            drag = isAR ? .arTurn : .orbit
         }
     }
 
     func touchMoved(_ pt: CGPoint, delta: CGPoint) {
         switch drag {
+        case .arTurn:
+            arYaw += Float(delta.x) * 0.01
         case .orbit:
             yaw -= Float(delta.x) * 0.008
             pitch = min(1.45, max(-1.45, pitch + Float(delta.y) * 0.006))
@@ -521,7 +707,9 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     }
 
     func tap(_ pt: CGPoint) {
-        guard !scene.sim.rigid, let i = pick(pt, radius: 26) else { return }
+        let hit = scene.sim.rigid ? nil : pick(pt, radius: 26)
+        if hit == nil && isAR { placeAR(at: pt); return }
+        guard let i = hit else { return }
         if scene.sim.pins[i] != nil {
             scene.sim.unpin(i)
         } else if tool == .pin {
@@ -534,9 +722,12 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         scene.sim.pin(i, at: scene.sim.pos[i])
     }
 
-    func pinch(scale: Float) { distance = min(8, max(0.08, distance / scale)) }
+    func pinch(scale: Float) {
+        if isAR { arScale = min(3, max(0.1, arScale * scale)) } else { distance = min(8, max(0.08, distance / scale)) }
+    }
 
     func pan2(delta: CGPoint) {
+        if isAR { return }
         let C = cameraBasis()
         let k = distance * 0.0016
         target += (-C.columns.0 * Float(delta.x) + C.columns.1 * Float(delta.y)) * k

@@ -1,5 +1,4 @@
 import SwiftUI
-import QuickLook
 
 extension Project {
     /// Real size of the RTI image: from the sphere's known diameter, a manual override, or a 30 cm guess.
@@ -53,6 +52,7 @@ struct ClothViewerView: View {
         if let v = arg("-cloth-material"), let m = ClothMaterial(rawValue: v) { s.material = m }
         let m = ClothModel(settings: s)
         if let v = arg("-cloth-mode"), let i = Int(v), let mode = ViewerModel.Mode(rawValue: i) { m.mode = mode }
+        if args.contains("-cloth-ar") { m.arMode = true }
         _model = State(initialValue: m)
     }
 
@@ -76,18 +76,28 @@ struct ClothViewerView: View {
             ClothMetalView(dir: project.rtiDir, versoDir: versoDir, sampleSize: sample.size, model: model,
                            settings: model.settings, tool: model.tool, mode: model.mode, gain: model.gain,
                            paused: model.paused, recenter: model.recenter, resetCloth: model.resetCloth,
-                           resetCamera: model.resetCamera, exportRequest: model.exportRequest)
+                           resetCamera: model.resetCamera, exportRequest: model.exportRequest, arMode: model.arMode)
                 .id("\(model.settings.verso ?? "")|\(maskVersion)|\(sample.size)")
                 .ignoresSafeArea()
             if let e = model.error {
                 Text(e).padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)).padding()
             }
             if model.exporting {
-                ProgressView("Preparing AR model…").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                ProgressView("Preparing 3D model…").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            }
+            if model.arMode, let h = model.arHint {
+                VStack {
+                    Text(h).font(.footnote.bold()).padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.top, 8)
+                    Spacer()
+                }
+                .environment(\.colorScheme, .dark)
+                .allowsHitTesting(false)
             }
             if showPanel { panel.environment(\.colorScheme, .dark) }
         }
-        .navigationTitle("3D cloth")
+        .navigationTitle(model.arMode ? "AR" : "3D cloth")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Color.black.opacity(0.55), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -96,7 +106,12 @@ struct ClothViewerView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { showMask = true } label: { Image(systemName: "scissors") }
                 Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                Button { model.exportRequest += 1 } label: { Image(systemName: "arkit") }
+                Button { model.arMode.toggle() } label: {
+                    Image(systemName: "arkit").symbolVariant(model.arMode ? .fill : .none)
+                        .foregroundStyle(model.arMode ? Color.yellow : Color.primary)
+                }
+                .disabled(!model.arAvailable)
+                Button { model.exportRequest += 1 } label: { Image(systemName: "square.and.arrow.up") }
                     .disabled(model.exporting)
                 Button { withAnimation { showPanel.toggle() } } label: {
                     Image(systemName: showPanel ? "rectangle.bottomthird.inset.filled" : "rectangle")
@@ -110,13 +125,30 @@ struct ClothViewerView: View {
         .sheet(isPresented: $showMask) {
             MaskEditorView(project: project, repeatRect: $model.settings.repeatRect) { maskVersion += 1 }
         }
-        .sheet(item: $arItem) { ARQuickLookView(url: $0.url).ignoresSafeArea() }
-        .onChange(of: model.exportedURL) { _, url in if let url { arItem = ShareItem(url: url); model.exportedURL = nil } }
+        .sheet(item: $arItem) { ShareSheet(url: $0.url) }
+        .onChange(of: model.exportedURL) { _, url in
+            guard let url else { return }
+            if ProcessInfo.processInfo.arguments.contains("-log-stats") {
+                let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
+                print("cloth export:", url.lastPathComponent, size / 1024, "KB")
+            }
+            arItem = ShareItem(url: url)
+            model.exportedURL = nil
+        }
+        .onChange(of: model.arHint) { _, h in
+            if ProcessInfo.processInfo.arguments.contains("-log-stats") { print("cloth AR:", h ?? "-") }
+        }
+        .onChange(of: model.error) { _, e in
+            if ProcessInfo.processInfo.arguments.contains("-log-stats"), let e { print("cloth error:", e) }
+        }
         .onDisappear { save() }
         .onAppear {
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-cloth-open-settings") { showSettings = true }
             if args.contains("-cloth-open-mask") { showMask = true }
+            if args.contains("-cloth-export-test") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { model.exportRequest += 1 }
+            }
         }
         .onChange(of: model.settings.support) { old, new in
             if Self.defaultAzimuth(old) != Self.defaultAzimuth(new) { model.settings.lightAzimuth = Self.defaultAzimuth(new) }
@@ -183,12 +215,14 @@ struct ClothViewerView: View {
                     }
                     .pickerStyle(.segmented)
                     HStack(spacing: 8) {
+                        if !model.arMode {
                         Menu {
                             Picker("Tilt", selection: $model.settings.tiltMode) {
                                 ForEach(ClothTiltMode.allCases) { Text($0.title).tag($0) }
                             }
                             if model.settings.tiltMode != .off { Button("Re-center") { model.recenter += 1 } }
                         } label: { chip(model.settings.tiltMode == .off ? "Tilt off" : "Tilt: \(model.settings.tiltMode.title)", "iphone.gen3.radiowaves.left.and.right") }
+                        }
                         Menu {
                             Picker("View", selection: $model.mode) {
                                 ForEach(ViewerModel.Mode.allCases) { Text($0.title).tag($0) }
@@ -216,6 +250,11 @@ struct ClothViewerView: View {
     }
 
     private var hint: String {
+        if model.arMode {
+            return model.settings.lightMode == .headlamp
+                ? "Headlamp: the light comes from your iPhone. Walk around the textile to relight it."
+                : "Drag the cloth to move it · long-press to pin · drag beside it to turn it · tap a surface to move it there."
+        }
         if model.settings.support == .board { return "Drag to turn the board · pinch to zoom · drag the light dome to move the lamp." }
         switch model.tool {
         case .move: return "Drag the cloth to move it · long-press to pin · tap a pin to remove it · drag empty space to turn around."
@@ -340,21 +379,4 @@ struct ClothSettingsView: View {
             .toolbar { Button("Done") { dismiss() } }
         }
     }
-}
-
-struct ARQuickLookView: UIViewControllerRepresentable {
-    let url: URL
-    final class Coordinator: NSObject, QLPreviewControllerDataSource {
-        let url: URL
-        init(url: URL) { self.url = url }
-        func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
-        func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
-    }
-    func makeCoordinator() -> Coordinator { Coordinator(url: url) }
-    func makeUIViewController(context: Context) -> QLPreviewController {
-        let c = QLPreviewController()
-        c.dataSource = context.coordinator
-        return c
-    }
-    func updateUIViewController(_ c: QLPreviewController, context: Context) {}
 }

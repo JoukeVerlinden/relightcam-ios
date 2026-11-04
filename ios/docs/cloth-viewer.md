@@ -148,9 +148,13 @@ matters for studying historical cutting.
 2. Textile cutout mask and real-scale calibration from the sphere diameter.
 3. XPBD cloth: presets, warp/weft stiffness, supports, finger dragging, tilt as gravity.
 4. Shadows, verso support, orbiting raking light, sheen approximation for silk and metal threads.
-5. Optional: AR. Bake a draped snapshot to USDZ with a PBR material (albedo, normal map from photometric
-   stereo, estimated roughness) to place on a real table with AR Quick Look. This is less faithful than the
-   RTI viewer, because AR viewers can't evaluate an RTI.
+5. AR, in two forms:
+   - **Live AR in the viewer** (built): the same simulation and RTI shader drawn over the ARKit camera image,
+     anchored on a detected floor or table, with a shadow-catching floor. Drag, pin and smooth all work in
+     AR, gravity is real, and *Headlamp* lights the textile from the phone itself.
+   - **Share a USDZ** (built): a baked snapshot of the drape with a PBR material (base colour = RTI lit from
+     above, normal map from photometric stereo), for AR Quick Look on any Apple device. Less faithful than
+     the live view, because AR Quick Look can't evaluate an RTI.
 6. **Dress form draping:** generated form with period silhouette presets and SDF collision, pins and
    smoothing, grainline and bias, repeat tiling or swatch mode, then cloth self-collision.
 

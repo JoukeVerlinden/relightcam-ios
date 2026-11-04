@@ -2,6 +2,7 @@ import SwiftUI
 import MetalKit
 import CoreMotion
 import Observation
+import ARKit
 
 @Observable
 final class ClothModel {
@@ -18,6 +19,9 @@ final class ClothModel {
     var exportRequest = 0
     var exporting = false
     var exportedURL: URL?
+    var arMode = false
+    var arHint: String?
+    let arAvailable = ARWorldTrackingConfiguration.isSupported
     @ObservationIgnored var savePins: (() -> ([ClothPin], String))?
 
     init(settings: ClothSettings) { self.settings = settings }
@@ -40,13 +44,37 @@ struct ClothMetalView: UIViewRepresentable {
     var resetCloth: Int
     var resetCamera: Int
     var exportRequest: Int
+    var arMode: Bool
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var renderer: ClothRenderer?
         var model: ClothModel?
         let motion = CMMotionManager()
         weak var view: MTKView?
+        var coaching: ARCoachingOverlayView?
         var last = (recenter: 0, resetCloth: 0, resetCamera: 0, export: 0)
+
+        func setAR(_ on: Bool) {
+            guard let r = renderer, let v = view, on != r.isAR else { return }
+            if on {
+                guard r.startAR() else {
+                    model?.error = "AR needs an iPhone or iPad with a camera."
+                    model?.arMode = false
+                    return
+                }
+                let c = ARCoachingOverlayView(frame: v.bounds)
+                c.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                c.goal = .horizontalPlane
+                c.activatesAutomatically = true
+                c.session = r.arSession
+                v.addSubview(c)
+                coaching = c
+            } else {
+                coaching?.removeFromSuperview()
+                coaching = nil
+                r.stopAR()
+            }
+        }
         private var lastPan = CGPoint.zero
         private var lastPan2 = CGPoint.zero
         private var startPinch: CGFloat = 1
@@ -137,6 +165,7 @@ struct ClothMetalView: UIViewRepresentable {
         do {
             let r = try ClothRenderer(dir: dir, settings: settings, sampleSize: sampleSize, versoDir: versoDir, view: v)
             let logStats = ProcessInfo.processInfo.arguments.contains("-log-stats")
+            r.onARHint = { [weak model] h in DispatchQueue.main.async { model?.arHint = h } }
             r.onStats = { [weak model] s in
                 if logStats { print("cloth stats:", s) }
                 DispatchQueue.main.async { model?.stats = s }
@@ -173,7 +202,8 @@ struct ClothMetalView: UIViewRepresentable {
         r.mode = mode.rawValue
         r.gain = gain
         r.paused = paused
-        c.setMotion(settings.tiltMode != .off)
+        c.setMotion(settings.tiltMode != .off && !arMode)
+        c.setAR(arMode)
         if c.last.recenter != recenter { c.last.recenter = recenter; r.recenterTilt() }
         if c.last.resetCloth != resetCloth { c.last.resetCloth = resetCloth; r.resetCloth() }
         if c.last.resetCamera != resetCamera { c.last.resetCamera = resetCamera; r.resetCamera() }
@@ -181,19 +211,24 @@ struct ClothMetalView: UIViewRepresentable {
             c.last.export = exportRequest
             let name = "\(dir.deletingLastPathComponent().lastPathComponent) cloth"
             model.exporting = true
-            DispatchQueue.main.async {
-                do {
-                    model.exportedURL = try r.exportUSDZ(name: name)
-                } catch {
-                    model.error = error.localizedDescription
+            r.paused = true   // freeze the drape while it's being baked
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try r.exportUSDZ(name: name) }
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let url): model.exportedURL = url
+                    case .failure(let e): model.error = e.localizedDescription
+                    }
+                    model.exporting = false
+                    r.paused = model.paused
                 }
-                model.exporting = false
             }
         }
     }
 
     static func dismantleUIView(_ v: MTKView, coordinator: Coordinator) {
         coordinator.motion.stopDeviceMotionUpdates()
+        coordinator.renderer?.stopAR()
         v.isPaused = true
     }
 }
