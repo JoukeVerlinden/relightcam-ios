@@ -23,7 +23,7 @@ struct ContentView: View {
                         Text("Shoot a series of photos with a moving light and a shiny sphere in view, or try the demo capture first.")
                     } actions: {
                         Button("New capture") { newCapture() }.buttonStyle(.borderedProminent)
-                        Button("Try the demo capture") { Task { await makeDemo() } }
+                        Button("Try the demo capture") { Task { await makeDemo(.textile) } }
                         Button("How to capture an RTI") { showHelp = true }
                     }
                 } else {
@@ -45,7 +45,8 @@ struct ContentView: View {
                     Menu {
                         Button { showPhotoPicker = true } label: { Label("Import from Photos", systemImage: "photo.on.rectangle") }
                         Button { showFileImporter = true } label: { Label("Import from Files", systemImage: "folder") }
-                        Button { Task { await makeDemo() } } label: { Label("Generate demo capture", systemImage: "wand.and.stars") }
+                        Button { Task { await makeDemo(.tablet) } } label: { Label("Demo capture: embossed tablet", systemImage: "wand.and.stars") }
+                        Button { Task { await makeDemo(.textile) } } label: { Label("Demo capture: silk textile", systemImage: "wand.and.stars.inverse") }
                     } label: { Image(systemName: "square.and.arrow.down") }
                     Button { newCapture() } label: { Image(systemName: "camera.fill") }
                 }
@@ -71,7 +72,10 @@ struct ContentView: View {
             if case .success(let urls) = result { Task { await importFiles(urls) } }
         }
         .sheet(isPresented: $showHelp) { HelpView() }
-        .task { if ProcessInfo.processInfo.arguments.contains("-autorun") { await autorun() } }
+        .task {
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-autorun-textile") { await autorun(.textile) } else if args.contains("-autorun") { await autorun(.tablet) }
+        }
         .alert("Something went wrong", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(errorText ?? "") }
@@ -128,9 +132,10 @@ struct ContentView: View {
     }
 
     /// Test hook (launch argument -autorun): demo capture → detect → HSH build → project screen.
-    private func autorun() async {
-        if let done = store.projects.first(where: { $0.meta.source == "demo" && $0.hasRTI }) { path = [done]; return }
-        await makeDemo()
+    private func autorun(_ kind: SyntheticDataset.Kind) async {
+        let source = kind == .tablet ? "demo" : "demo-textile"
+        if let done = store.projects.first(where: { $0.meta.source == source && $0.hasRTI }) { path = [done]; return }
+        await makeDemo(kind)
         guard let p = path.first, let sphere = p.meta.sphere else { return }
         busy = "Autorun: detecting lights…"
         let urls = p.frameURLs, fw = p.meta.frameWidth, fh = p.meta.frameHeight, out = p.rtiDir
@@ -140,23 +145,27 @@ struct ContentView: View {
         busy = "Autorun: building HSH…"
         let idx = p.usableIndices
         let frames = idx.map { urls[$0] }, lights = idx.map { hs[$0].dir }
+        let pixelSize: (Int) -> Double? = { [p] w in p.rtiPixelSizeMM(rtiWidth: w) }
         if let r = try? await Task.detached(operation: {
-            try RTIBuilder.build(frames: frames, lights: lights, basis: .hsh, maxSide: 1536, output: out) { _, _ in }
+            try RTIBuilder.build(frames: frames, lights: lights, basis: .hsh, maxSide: 1536, output: out, pixelSizeMM: pixelSize) { _, _ in }
         }).value {
             p.meta.rti = RTIMeta(basis: .hsh, width: r.width, height: r.height, lightsUsed: r.lightsUsed, date: Date(), seconds: r.seconds)
             p.save()
+            if kind == .textile { DemoMask.write(for: p) }
         }
         busy = nil
         path = []
         path = [p]
     }
 
-    private func makeDemo() async {
-        guard let p = try? store.create(name: "Demo tablet", source: "demo") else { return }
+    private func makeDemo(_ kind: SyntheticDataset.Kind) async {
+        let isTablet = kind == .tablet
+        guard let p = try? store.create(name: isTablet ? "Demo tablet" : "Demo silk lampas", source: isTablet ? "demo" : "demo-textile") else { return }
         busy = "Rendering demo capture…"
         let dir = p.framesDir
         do {
-            let r = try await Task.detached(priority: .userInitiated) { try SyntheticDataset.generate(into: dir) }.value
+            let r = try await Task.detached(priority: .userInitiated) { try SyntheticDataset.generate(into: dir, kind: kind) }.value
+            if !isTablet { p.meta.sphereDiameterMM = 40 }
             p.meta.frames = r.files
             p.meta.frameWidth = r.width
             p.meta.frameHeight = r.height

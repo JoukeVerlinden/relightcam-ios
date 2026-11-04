@@ -106,50 +106,9 @@ final class RTIMetalRenderer: NSObject, MTKViewDelegate {
         pd.colorAttachments[0].pixelFormat = view.colorPixelFormat
         pipeline = try device.makeRenderPipelineState(descriptor: pd)
 
-        let W = info.width, H = info.height, k = info.nCoeffs
-        let levels = Int(log2(Double(max(W, H)))) + 1
-        let td = MTLTextureDescriptor()
-        td.textureType = .type2DArray
-        td.pixelFormat = .rgba8Unorm
-        td.width = W
-        td.height = H
-        td.arrayLength = k
-        td.mipmapLevelCount = levels
-        td.usage = .shaderRead
-        guard let tex = device.makeTexture(descriptor: td) else { throw RelightError.invalid("Out of GPU memory") }
-        for j in 0..<k {
-            guard let img = ImageUtils.load(dir.appendingPathComponent("plane_\(j).\(info.format)")) else {
-                throw RelightError.io("Missing plane_\(j)")
-            }
-            let px = ImageUtils.rgba(img, width: W, height: H)
-            px.withUnsafeBytes {
-                tex.replace(region: MTLRegionMake2D(0, 0, W, H), mipmapLevel: 0, slice: j,
-                            withBytes: $0.baseAddress!, bytesPerRow: W * 4, bytesPerImage: W * H * 4)
-            }
-        }
-        planes = tex
-
-        let nd = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: W, height: H, mipmapped: true)
-        nd.usage = .shaderRead
-        guard let ntex = device.makeTexture(descriptor: nd) else { throw RelightError.invalid("Out of GPU memory") }
-        var npx = [UInt8](repeating: 0, count: W * H * 4)
-        if let nimg = ImageUtils.load(dir.appendingPathComponent("normals.png")) {
-            npx = ImageUtils.rgba(nimg, width: W, height: H)
-        } else {
-            for i in 0..<(W * H) { npx[i * 4] = 128; npx[i * 4 + 1] = 128; npx[i * 4 + 2] = 255; npx[i * 4 + 3] = 255 }
-        }
-        npx.withUnsafeBytes {
-            ntex.replace(region: MTLRegionMake2D(0, 0, W, H), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: W * 4)
-        }
-        normals = ntex
-
-        if let cb = q.makeCommandBuffer(), let blit = cb.makeBlitCommandEncoder() {
-            blit.generateMipmaps(for: planes)
-            blit.generateMipmaps(for: normals)
-            blit.endEncoding()
-            cb.commit()
-            cb.waitUntilCompleted()
-        }
+        let set = try RTITextures.load(dir: dir, device: device, queue: q)
+        planes = set.planes
+        normals = set.normals
         super.init()
     }
 

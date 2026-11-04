@@ -82,6 +82,7 @@ struct SphereView: View {
         .navigationTitle("Sphere & lights")
         .navigationBarTitleDisplayMode(.inline)
         .task { await prepare() }
+        .onDisappear { project.save() }
     }
 
     private var panGesture: some Gesture {
@@ -117,6 +118,15 @@ struct SphereView: View {
             } else {
                 Text("Drag the yellow circle onto the shiny sphere and drag the handle to match its edge. Pinch to zoom in for precision.")
                     .font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Text("Sphere diameter").font(.footnote)
+                TextField("mm", value: $project.meta.sphereDiameterMM, format: .number.precision(.fractionLength(0...1)))
+                    .keyboardType(.decimalPad).textFieldStyle(.roundedBorder).frame(width: 80)
+                    .onSubmit { project.save() }
+                Text("mm").font(.footnote).foregroundStyle(.secondary)
+                Spacer()
+                Text("gives real size for the 3D viewer").font(.caption2).foregroundStyle(.secondary)
             }
             HStack {
                 Button { zoomToSphere() } label: { Label("Zoom to sphere", systemImage: "scope") }

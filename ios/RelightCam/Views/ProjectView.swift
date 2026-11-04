@@ -28,6 +28,7 @@ struct ProjectView: View {
     @State private var newName = ""
     @State private var showViewer = false
     @State private var showSphere = false
+    @State private var showCloth = false
 
     var body: some View {
         List {
@@ -89,6 +90,8 @@ struct ProjectView: View {
             Section {
                 Button { showViewer = true } label: { Label("Open relightable image", systemImage: "light.max") }
                     .disabled(!project.hasRTI)
+                Button { showCloth = true } label: { Label("Open in 3D cloth viewer", systemImage: "figure.stand.dress") }
+                    .disabled(!project.hasRTI)
                 if let r = project.meta.rti {
                     Text(verbatim: "\(r.basis.rawValue.uppercased()) · \(r.width)×\(r.height) · \(r.lightsUsed) lights · built in \(String(format: "%.1f", r.seconds)) s")
                         .font(.caption).foregroundStyle(.secondary)
@@ -131,12 +134,14 @@ struct ProjectView: View {
         .fullScreenCover(isPresented: $showCapture) { CaptureView(project: project) }
         .navigationDestination(isPresented: $showViewer) { ViewerView(project: project) }
         .navigationDestination(isPresented: $showSphere) { SphereView(project: project) }
+        .navigationDestination(isPresented: $showCloth) { ClothViewerView(project: project) }
         .onAppear {
             if let b = project.meta.rti?.basis { basis = b }
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-open-viewer") && project.hasRTI { showViewer = true }
             if args.contains("-open-sphere") { showSphere = true }
             if args.contains("-open-capture") { showCapture = true }
+            if args.contains("-open-cloth") && project.hasRTI { showCloth = true }
         }
     }
 
@@ -158,17 +163,22 @@ struct ProjectView: View {
         let frames = idx.map { project.frameURLs[$0] }
         let lights = idx.map { hs[$0].dir }
         let b = basis, side = maxSide, out = project.rtiDir
+        // keep the cloth viewer's cutout across rebuilds (the builder recreates rti/)
+        let savedMask = try? Data(contentsOf: out.appendingPathComponent("mask.png"))
+        let pixelSize: (Int) -> Double? = { [project] w in project.rtiPixelSizeMM(rtiWidth: w) }
         building = true
         buildProgress = 0
         buildStatus = "Starting…"
         do {
             let r = try await Task.detached(priority: .userInitiated) {
-                try RTIBuilder.build(frames: frames, lights: lights, basis: b, maxSide: side, output: out) { p, s in
+                try RTIBuilder.build(frames: frames, lights: lights, basis: b, maxSide: side, output: out, pixelSizeMM: pixelSize) { p, s in
                     Task { @MainActor in buildProgress = p; buildStatus = s }
                 }
             }.value
             project.meta.rti = RTIMeta(basis: b, width: r.width, height: r.height, lightsUsed: r.lightsUsed, date: Date(), seconds: r.seconds)
             project.save()
+            if let savedMask { try? savedMask.write(to: out.appendingPathComponent("mask.png")) }
+            else if project.meta.source == "demo-textile" { DemoMask.write(for: project) }
         } catch {
             errorText = error.localizedDescription
         }

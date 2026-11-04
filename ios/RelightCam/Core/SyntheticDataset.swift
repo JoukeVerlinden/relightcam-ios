@@ -27,10 +27,12 @@ enum SyntheticDataset {
         return out
     }
 
-    static func generate(into dir: URL, width W: Int = 1600, height H: Int = 1200,
+    enum Kind { case tablet, textile }
+
+    static func generate(into dir: URL, kind: Kind = .tablet, width W: Int = 1600, height H: Int = 1200,
                          progress: ((Double) -> Void)? = nil) throws -> Result {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let height = reliefHeight(W, H)
+        let height = kind == .tablet ? reliefHeight(W, H) : weaveHeight(W, H)
         let sphere = SphereCircle(cx: Double(W) * 0.12, cy: Double(H) * 0.15, r: Double(min(W, H)) * 0.09)
         let lights = lightDirections()
         var files: [String] = []
@@ -38,6 +40,8 @@ enum SyntheticDataset {
         // Precompute normals and albedo once.
         var normals = [SIMD3<Float>](repeating: SIMD3(0, 0, 1), count: W * H)
         var albedo = [SIMD3<Float>](repeating: .zero, count: W * H)
+        var shine = [Float](repeating: 0.18, count: W * H)
+        let specPower: Float = kind == .tablet ? 40 : 28
         for y in 0..<H {
             for x in 0..<W {
                 let xm = max(0, x - 1), xp = min(W - 1, x + 1), ym = max(0, y - 1), yp = min(H - 1, y + 1)
@@ -46,6 +50,15 @@ enum SyntheticDataset {
                 // light space has y up, image rows go down
                 normals[y * W + x] = simd_normalize(SIMD3(-dx, dyImg, 1))
                 let fx = Float(x), fy = Float(y)
+                if kind == .textile {
+                    // gold weft floats (motif) on a red warp-faced satin ground; silk is glossy
+                    let motif = height.mask[y * W + x]
+                    let red = SIMD3<Float>(0.52, 0.07, 0.10), gold = SIMD3<Float>(0.86, 0.66, 0.30)
+                    let wear = 0.92 + 0.08 * sin(fx * 0.004 + 2) * cos(fy * 0.005)
+                    albedo[y * W + x] = (red * (1 - motif) + gold * motif) * wear
+                    shine[y * W + x] = 0.35 + 0.25 * motif
+                    continue
+                }
                 let mottling = 0.88 + 0.12 * sin(fx * 0.013 + 1.3) * cos(fy * 0.017 + 0.4) + 0.05 * sin(fx * 0.11) * sin(fy * 0.09)
                 let base = SIMD3<Float>(0.80, 0.68, 0.50) * mottling
                 let paint = SIMD3<Float>(0.62, 0.22, 0.16)
@@ -77,7 +90,7 @@ enum SyntheticDataset {
                         } else {
                             let n = normals[y * W + x]
                             let diff = max(simd_dot(n, L), 0)
-                            let spec = 0.18 * pow(max(simd_dot(n, Hv), 0), 40)
+                            let spec = shine[y * W + x] * pow(max(simd_dot(n, Hv), 0), specPower)
                             c = albedo[y * W + x] * (0.04 + 0.96 * diff) + SIMD3(repeating: spec)
                         }
                         seed = seed &* 1664525 &+ 1013904223
@@ -96,6 +109,43 @@ enum SyntheticDataset {
             progress?(Double(i + 1) / Double(lights.count))
         }
         return Result(files: files, lights: lights, sphere: sphere, width: W, height: H)
+    }
+
+    /// A lampas-like silk: 5-end satin, warp-faced (vertical floats) in the ground and weft-faced
+    /// (horizontal floats) in an ogee/medallion motif. `mask` is 1 in the motif.
+    private static func weaveHeight(_ W: Int, _ H: Int) -> (h: [Float], mask: [Float]) {
+        let pitch: Float = 7
+        var h = [Float](repeating: 0, count: W * H)
+        var m = [Float](repeating: 0, count: W * H)
+        let rx: Float = 260, ry: Float = 200
+        for y in 0..<H {
+            for x in 0..<W {
+                let fxp = Float(x) / pitch, fyp = Float(y) / pitch
+                let ix = Int(floor(fxp)), iy = Int(floor(fyp))
+                let fx = fxp - Float(ix), fy = fyp - Float(iy)
+                // motif: staggered medallions with a four-petal flower inside
+                let cxr = (Float(x) / rx).rounded(.down), cyr = (Float(y) / ry).rounded(.down)
+                let ox = (Float(x) - (cxr + 0.5) * rx + (Int(cyr) % 2 == 0 ? 0 : rx * 0.5)).truncatingRemainder(dividingBy: rx)
+                let dx = abs(ox) > rx / 2 ? rx - abs(ox) : abs(ox)
+                let dy = abs(Float(y) - (cyr + 0.5) * ry)
+                let diamond = dx / (rx * 0.42) + dy / (ry * 0.42)
+                let ang = atan2(dy, dx), rr = (dx * dx + dy * dy).squareRoot()
+                let petal = rr < 55 + 25 * abs(cos(2 * ang))
+                let ring = diamond < 1 && diamond > 0.82
+                let motif = petal || ring
+                // satin binding points (step 2 on 5 shafts)
+                let weftOnTop: Bool
+                if motif {
+                    weftOnTop = ((iy * 2 + ix) % 5 + 5) % 5 != 0
+                } else {
+                    weftOnTop = ((ix * 2 + iy) % 5 + 5) % 5 == 0
+                }
+                let across = weftOnTop ? fy : fx
+                h[y * W + x] = 2.2 * pow(max(0, cos(.pi * (across - 0.5))), 0.6)
+                m[y * W + x] = motif ? 1 : 0
+            }
+        }
+        return (h, m)
     }
 
     /// Embossed lettering inside a raised ring, plus a gentle wavy surface.

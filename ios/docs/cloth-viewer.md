@@ -1,7 +1,7 @@
 # Design note: 3D cloth viewer for historical textiles
 
-**Status: proposed, not implemented.** A second viewer inside relightCam, next to the existing RTI viewer,
-not a separate app.
+**Status: first version implemented** (`RelightCam/Cloth/`, `RelightCam/Viewer/Cloth/`). A second viewer
+inside relightCam, next to the existing RTI viewer, not a separate app.
 
 ## Goal
 
@@ -69,8 +69,8 @@ drapes or reflects.
   supports. CPU with SIMD first; Metal compute if more resolution is needed.
 - **Anisotropy:** separate warp and weft stiffness. The user sets the warp direction (default: image vertical).
 - **Presets:** silk (light, low bending), linen, wool (heavier), tapestry (stiff, heavy), rigid (sample on board).
-- **Supports:** hang from a rod (top edge pinned), lie on a table, drape over a padded roll or bolster, pin at
-  chosen points, or float freely.
+- **Supports:** a rigid board (mounted samples), pin on a dress form, or hang free from pinned corners.
+  (Rod, table and padded-roll supports were tried and left out.)
 - **Real scale:** physics only looks right at real size. Ask for the reference sphere's real diameter
   (e.g. 25 mm). The app already knows its radius in pixels, which gives mm per pixel; store it as
   `pixelSizeInMM` in `info.json` (a key relight already uses).

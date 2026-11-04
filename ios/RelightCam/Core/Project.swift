@@ -22,6 +22,10 @@ struct ProjectMeta: Codable {
     var excluded: [Int] = []
     var compositeCount: Int?
     var rti: RTIMeta?
+    /// real diameter of the reflective sphere: gives the RTI its real size (mm per pixel)
+    var sphereDiameterMM: Double?
+    /// 3D cloth viewer settings, so a sample opens the same way next time
+    var cloth: ClothSettings?
 }
 
 /// One capture session = one folder in Documents/Projects (visible in the Files app).
@@ -56,6 +60,12 @@ final class Project: Identifiable, Hashable {
     }
 
     var lightsAreCurrent: Bool { meta.highlights?.count == meta.frames.count && meta.sphere != nil }
+
+    /// mm per pixel of the RTI (from the sphere diameter), for relight's pixelSizeInMM.
+    func rtiPixelSizeMM(rtiWidth: Int) -> Double? {
+        guard let d = meta.sphereDiameterMM, d > 0, let s = meta.sphere, s.r > 0, rtiWidth > 0 else { return nil }
+        return d / (2 * s.r) * Double(meta.frameWidth) / Double(rtiWidth)
+    }
 
     func save() {
         let enc = JSONEncoder()

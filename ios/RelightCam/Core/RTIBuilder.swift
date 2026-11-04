@@ -16,6 +16,7 @@ struct RelightInfo: Codable {
     var colorspace: String
     var lights: [Double]?
     var nplanes: Int
+    var pixelSizeInMM: Double?
     var quality: Int?
     var materials: [Material]
 
@@ -45,6 +46,7 @@ enum RTIBuilder {
     /// coefficient planes as soon as it is decoded. Memory is O(planes × pixels), not O(photos × pixels).
     static func build(frames: [URL], lights: [[Double]], basis: RTIBasis, maxSide: Int, output: URL,
                       jpegQuality: Double = 1.0, computeNormals: Bool = true,
+                      pixelSizeMM: ((Int) -> Double?)? = nil,
                       progress: (Double, String) -> Void) throws -> RTIBuildResult {
         let t0 = Date()
         let k = basis.nCoeffs
@@ -169,8 +171,8 @@ enum RTIBuilder {
 
         let info = RelightInfo(width: W, height: H, format: "jpg", type: basis.rawValue, colorspace: "rgb",
                                lights: lights.flatMap { $0.map { ($0 * 1000).rounded() / 1000 } },
-                               nplanes: nplanes, quality: Int(jpegQuality * 100),
-                               materials: [.init(scale: scale, bias: bias)])
+                               nplanes: nplanes, pixelSizeInMM: pixelSizeMM.flatMap { $0(W) },
+                               quality: Int(jpegQuality * 100), materials: [.init(scale: scale, bias: bias)])
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted]
         try enc.encode(info).write(to: output.appendingPathComponent("info.json"))
