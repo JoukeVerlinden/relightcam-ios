@@ -21,7 +21,7 @@ textiles and samples: silk floats, metal threads, tapestry weave, worn and irreg
   - plane loading and the Metal textures (`RTIMetalRenderer`)
   - the tilt handling (CoreMotion gravity, re-center)
   - the light indicator and the RTI / Specular / Shaded / Normals modes
-  New code goes in `Viewer/Cloth/` (simulation, mesh, 3D renderer and the SwiftUI screen).
+- **New code:** goes in `Viewer/Cloth/` (simulation, mesh, 3D renderer and the SwiftUI screen).
 - **Consistent controls:** the same light dome indicator, gain slider and mode picker as the 2D viewer, plus
   the cloth controls below. In the 3D viewer, tilt drives both gravity and the light, depending on the light
   mode chosen.
