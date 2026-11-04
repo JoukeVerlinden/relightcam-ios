@@ -36,7 +36,6 @@ struct ClothViewerView: View {
     @State private var showSettings = false
     @State private var showMask = false
     @State private var arItem: ShareItem?
-    @State private var maskVersion = 0
     @State private var showPanel = true
 
     init(project: Project) {
@@ -99,8 +98,9 @@ struct ClothViewerView: View {
                            settings: model.settings, tool: model.tool, mode: model.mode, gain: model.gain,
                            paused: model.paused, recenter: model.recenter, resetCloth: model.resetCloth,
                            resetCamera: model.resetCamera, exportRequest: model.exportRequest, arMode: model.arMode,
-                           suspended: showSettings || showMask || arItem != nil)
-                .id("\(model.settings.verso ?? "")|\(maskVersion)|\(sample.size)")
+                           suspended: showSettings || arItem != nil, editingCutout: showMask,
+                           maskVersion: model.maskVersion)
+                .id("\(model.settings.verso ?? "")|\(sample.size)")
                 .ignoresSafeArea()
             if let e = model.error {
                 Text(e).padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)).padding()
@@ -118,7 +118,7 @@ struct ClothViewerView: View {
                 .environment(\.colorScheme, .dark)
                 .allowsHitTesting(false)
             }
-            if showPanel { panel.environment(\.colorScheme, .dark) }
+            if showPanel && !showMask { panel.environment(\.colorScheme, .dark) }
         }
         .navigationTitle(model.arMode ? "AR" : "3D cloth")
         .navigationBarTitleDisplayMode(.inline)
@@ -127,6 +127,7 @@ struct ClothViewerView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Group {
                 Button { showMask = true } label: { Image(systemName: "scissors") }
                 Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
                 Button { model.arMode.toggle() } label: {
@@ -139,6 +140,9 @@ struct ClothViewerView: View {
                 Button { withAnimation { showPanel.toggle() } } label: {
                     Image(systemName: showPanel ? "rectangle.bottomthird.inset.filled" : "rectangle")
                 }
+                }
+                // the cutout editor leaves the cloth usable behind it, but not these (another sheet can't open)
+                .disabled(showMask)
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -146,7 +150,13 @@ struct ClothViewerView: View {
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showMask) {
-            MaskEditorView(project: project, repeatRect: $model.settings.repeatRect) { maskVersion += 1 }
+            MaskEditorView(project: project, settings: $model.settings) { px, w, h in
+                model.liveMask = (px, w, h)
+                model.maskVersion += 1
+            }
+            // a lower panel, so the cloth stays visible (and touchable) above it while you edit
+            .presentationDetents([.fraction(0.58)])
+            .presentationBackgroundInteraction(.enabled)
         }
         .sheet(item: $arItem) { ShareSheet(url: $0.url) }
         .onChange(of: model.exportedURL) { _, url in
@@ -360,7 +370,7 @@ struct ClothSettingsView: View {
                         Slider(value: $model.settings.panelWidth, in: 0.2...1.6, step: 0.05)
                         LabeledContent("Panel height", value: String(format: "%.0f cm", model.settings.panelHeight * 100))
                         Slider(value: $model.settings.panelHeight, in: 0.2...1.6, step: 0.05)
-                        Text("The textile repeats over the panel (on the dress form and free cloth; the board always shows the sample itself). Mark one pattern repeat with the scissors tool (Repeat region).")
+                        Text("The textile repeats over the panel (on the dress form and free cloth; the board always shows the sample itself). Mark the pattern repeat with the scissors (Repeat).")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } header: { Text("Fabric") }
@@ -368,7 +378,6 @@ struct ClothSettingsView: View {
                 Section {
                     Toggle("Sheen (silk, metal threads)", isOn: Binding(get: { model.settings.sheenEnabled }, set: { model.settings.sheen = $0 }))
                     Toggle("Show warp grainline", isOn: $model.settings.showGrainline)
-                    Toggle("Use cutout", isOn: $model.settings.useMask)
                     Toggle("Cloth-on-cloth collisions", isOn: $model.settings.selfCollision)
                     Picker("Reverse side", selection: $model.settings.verso) {
                         Text("None (plain back)").tag(String?.none)

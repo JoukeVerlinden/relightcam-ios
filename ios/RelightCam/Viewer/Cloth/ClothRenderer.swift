@@ -53,8 +53,8 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     private let shadowTex: MTLTexture
     private let front: RTITextureSet
     private var verso: RTITextureSet?
-    private let maskTex: MTLTexture
-    private let maskLookup: ((SIMD2<Float>) -> Bool)?
+    private var maskTex: MTLTexture
+    private var maskLookup: ((SIMD2<Float>) -> Bool)?
     private let white: MTLTexture
     let rtiDir: URL
     let sampleSize: SIMD2<Float>
@@ -237,14 +237,21 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     }
 
     static func key(_ s: ClothSettings) -> String {
-        "\(s.support)|\(s.material)|\(s.form)|\(s.grainAngle)|\(s.tiling)|\(s.panelWidth)|\(s.panelHeight)|\(s.repeatRect)|\(s.useMask)|\(s.selfCollision)|\(s.sampleWidthOverride ?? 0)"
+        "\(s.support)|\(s.material)|\(s.form)|\(s.grainAngle)|\(s.tiling)|\(s.panelWidth)|\(s.panelHeight)|\(s.selfCollision)|\(s.sampleWidthOverride ?? 0)"
     }
 
-    /// Applies new settings; rebuilds the cloth when the scene itself changed.
+    /// Applies new settings; rebuilds the cloth when the scene itself changed. The repeat region only
+    /// changes the texture mapping, so it updates live without restarting the drape.
     func apply(_ s: ClothSettings) {
         let k = Self.key(s)
+        // a new support, or tiling on/off (the panel size changes), rebuilds at once and refits the camera
         let supportChanged = s.support != settings.support || s.form != settings.form
+            || (s.tiling == .off) != (settings.tiling == .off)
         settings = s
+        if s.repeatRect.count == 4 {
+            let rr = SIMD4<Float>(s.repeatRect.map { Float($0) })
+            if scene.mapping.repeatRect != rr { scene.mapping.repeatRect = rr }
+        }
         if k != sceneKey {
             sceneKey = k
             // a new support rebuilds at once; slider drags (panel size, grain) wait until they settle
@@ -252,6 +259,22 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
             pendingRebuild = (supportChanged ? 0 : CACurrentMediaTime(), reset)
         }
         if s.tiltMode != .walkAround { walkBase = nil }
+    }
+
+    /// A new cutout from the editor (w × h, white = textile). Used at once: when the outline is in use, the cloth
+    /// is rebuilt in its new shape.
+    func setMask(_ m: [UInt8], width W: Int, height H: Int) {
+        guard W > 0, H > 0, m.count == W * H else { return }
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .r8Unorm, width: W, height: H, mipmapped: false)
+        d.usage = .shaderRead
+        guard let tex = device.makeTexture(descriptor: d) else { return }
+        m.withUnsafeBytes { tex.replace(region: MTLRegionMake2D(0, 0, W, H), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: W) }
+        maskTex = tex
+        maskLookup = { uv in
+            let x = min(W - 1, max(0, Int(uv.x * Float(W)))), y = min(H - 1, max(0, Int(uv.y * Float(H))))
+            return m[y * W + x] > 127
+        }
+        if scene.mapping.tiling == .off { pendingRebuild = (0, pendingRebuild?.resetCamera ?? false) }
     }
 
     func resetCloth() {
@@ -277,7 +300,8 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
     /// The title bar covers the top ~11% of the screen and the controls the bottom ~38%:
     /// fit the scene into the band between them.
     var topInset: Float = 0.11
-    var bottomInset: Float = 0.38
+    /// Screen fraction covered by the panel below; the cutout editor raises it so the cloth stays in view.
+    var bottomInset: Float = 0.38 { didSet { if bottomInset != oldValue { needsFit = true } } }
     private var needsFit = true
 
     private func fitCamera(aspect: Float) {
@@ -671,7 +695,7 @@ final class ClothRenderer: NSObject, MTKViewDelegate {
         u[54] = gain
         u[55] = Float(mode)
         u[56] = settings.sheenEnabled ? 1 : 0
-        u[57] = (settings.useMask && maskLookup != nil && scene.mapping.tiling == .off) ? 1 : 0
+        u[57] = (maskLookup != nil && scene.mapping.tiling == .off) ? 1 : 0
         u[58] = verso != nil ? 1 : 0
         u[59] = settings.showGrainline ? 1 : 0
         u[60] = Float(verso?.info.nCoeffs ?? 0)

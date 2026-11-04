@@ -79,37 +79,70 @@ final class MaskCanvas {
     }
 }
 
-/// Cut the textile out of its background (and the calibration sphere), and mark one pattern repeat for tiling.
-/// Saves rti/mask.png (white = textile); relight's own viewers ignore the file.
+/// The two ways the cloth viewer uses the photo, edited side by side:
+/// - Outline: the shape of the piece (rti/mask.png, white = textile), used when the sample is shown once
+///   (always on the board, and on the form or free cloth with tiling off).
+/// - Repeat: the rectangle that's tiled into a length of fabric when tiling is on.
+/// The editor sits in a lower panel over the running cloth viewer. A new repeat rectangle shows on the cloth
+/// while you drag; outline edits are sent when you lift your finger. Cancel puts everything back.
 struct MaskEditorView: View {
     let project: Project
-    @Binding var repeatRect: [Double]
-    var onSave: () -> Void
+    @Binding var settings: ClothSettings
+    /// a new mask for the viewer (pixels, width, height)
+    var onMaskChange: ([UInt8], Int, Int) -> Void
 
-    enum Tool: String, CaseIterable, Identifiable {
-        case add, erase, repeatRegion
+    enum Part: String, CaseIterable, Identifiable {
+        case outline, pattern
         var id: String { rawValue }
-        var title: String { ["Add", "Erase", "Repeat region"][Tool.allCases.firstIndex(of: self)!] }
+        var title: String { self == .outline ? "Outline" : "Repeat" }
+    }
+    enum Brush: String, CaseIterable, Identifiable {
+        case add, erase
+        var id: String { rawValue }
+        var title: String { self == .add ? "Add" : "Erase" }
     }
 
     @Environment(\.dismiss) private var dismiss
+    @State private var part: Part
+    @State private var brushMode: Brush = .add
+    @State private var brush: Double = 0.04
     @State private var base: UIImage?
     @State private var canvas = MaskCanvas()
     @State private var overlay: UIImage?
-    /// Edited here and written back on Save, so dragging the rectangle doesn't update the cloth viewer behind
-    /// the sheet on every touch, and Cancel discards it.
-    @State private var region: [Double]
-    @State private var tool: Tool = .add
-    @State private var brush: Double = 0.04
     @State private var busy: String?
     @State private var message: String?
     @State private var rectStart: CGPoint?
+    @State private var maskDirty = false
+    @State private var originalMask: [UInt8] = []
+    private let originalTiling: ClothTiling
+    private let originalRect: [Double]
 
-    init(project: Project, repeatRect: Binding<[Double]>, onSave: @escaping () -> Void) {
+    init(project: Project, settings: Binding<ClothSettings>, onMaskChange: @escaping ([UInt8], Int, Int) -> Void) {
         self.project = project
-        _repeatRect = repeatRect
-        self.onSave = onSave
-        _region = State(initialValue: repeatRect.wrappedValue)
+        _settings = settings
+        self.onMaskChange = onMaskChange
+        let s = settings.wrappedValue
+        originalTiling = s.tiling
+        originalRect = s.repeatRect
+        _part = State(initialValue: s.support != .board && s.tiling != .off ? .pattern : .outline)
+    }
+
+    /// Whether the part being edited shows on the cloth right now, and what would make it show.
+    private var status: (inUse: Bool, text: String, action: (title: String, run: () -> Void)?) {
+        switch part {
+        case .outline:
+            if settings.support == .board { return (true, "In use: the board shows the sample in this shape.", nil) }
+            if settings.tiling == .off { return (true, "In use: the cloth is cut to this shape.", nil) }
+            return (false, "Not used now: the cloth repeats the pattern.", ("Use outline", { settings.tiling = .off }))
+        case .pattern:
+            if settings.support == .board {
+                return (false, "Not used on the board, which shows the sample itself. The dress form and free cloth repeat it.", nil)
+            }
+            if settings.tiling == .off {
+                return (false, "Not used now: the cloth shows the sample once.", ("Repeat it", { settings.tiling = .repeating }))
+            }
+            return (true, "In use: the cloth repeats this rectangle.", nil)
+        }
     }
 
     var body: some View {
@@ -119,20 +152,29 @@ struct MaskEditorView: View {
                     let aspect = CGFloat(max(1, project.meta.frameHeight)) / CGFloat(max(1, project.meta.frameWidth))
                     let w = min(geo.size.width, geo.size.height / aspect), h = w * aspect
                     let origin = CGPoint(x: (geo.size.width - w) / 2, y: (geo.size.height - h) / 2)
+                    let rr = settings.repeatRect.count == 4 ? settings.repeatRect : [0, 0, 1, 1]
+                    let rect = CGRect(x: origin.x + w * rr[0], y: origin.y + h * rr[1], width: w * rr[2], height: h * rr[3])
                     ZStack(alignment: .topLeading) {
                         Color.black
                         if let base {
                             Image(uiImage: base).resizable().frame(width: w, height: h).offset(x: origin.x, y: origin.y)
                         }
-                        if let overlay {
+                        if part == .outline, let overlay {
                             Image(uiImage: overlay).resizable().interpolation(.none)
                                 .frame(width: w, height: h).offset(x: origin.x, y: origin.y)
                                 .allowsHitTesting(false)
                         }
-                        if region.count == 4, !(region == [0, 0, 1, 1]) {
+                        if part == .pattern {
+                            // dim everything outside the repeat
+                            Path { p in
+                                p.addRect(CGRect(x: origin.x, y: origin.y, width: w, height: h))
+                                p.addRect(rect)
+                            }
+                            .fill(Color.black.opacity(0.5), style: FillStyle(eoFill: true))
+                            .allowsHitTesting(false)
                             Rectangle().stroke(Color.yellow, lineWidth: 2)
-                                .frame(width: w * region[2], height: h * region[3])
-                                .offset(x: origin.x + w * region[0], y: origin.y + h * region[1])
+                                .frame(width: rect.width, height: rect.height)
+                                .offset(x: rect.minX, y: rect.minY)
                                 .allowsHitTesting(false)
                         }
                     }
@@ -141,77 +183,114 @@ struct MaskEditorView: View {
                         drag(to: CGPoint(x: (v.location.x - origin.x) / w, y: (v.location.y - origin.y) / h))
                     }.onEnded { _ in endDrag() })
                 }
-                VStack(spacing: 10) {
-                    if let busy { ProgressView(busy) }
-                    if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
-                    Picker("Tool", selection: $tool) {
-                        ForEach(Tool.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    if tool == .repeatRegion {
-                        HStack {
-                            Text("Drag a rectangle around one pattern repeat (used when Tiling is on).").font(.caption)
-                            Spacer()
-                            Button("Whole image") { region = [0, 0, 1, 1] }.font(.caption)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "circle.fill").font(.caption2)
-                            Slider(value: $brush, in: 0.01...0.15)
-                            Image(systemName: "circle.fill").font(.title3)
-                        }
-                    }
-                    HStack {
-                        Button { Task { await autoMask() } } label: { Label("Auto", systemImage: "wand.and.stars") }
-                        Spacer()
-                        Button("Keep all") { canvas.fill(255); refresh() }
-                        Spacer()
-                        Button("Remove sphere") { removeSphere(); refresh() }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(busy != nil)
-                }
-                .padding()
-                .background(.bar)
+                controls
             }
-            .navigationTitle("Cutout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { cancel(); dismiss() } }
+                ToolbarItem(placement: .principal) {
+                    Picker("Edit", selection: $part) {
+                        ForEach(Part.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save(); dismiss() } }
             }
             .task {
                 await load()
                 if ProcessInfo.processInfo.arguments.contains("-mask-test-stroke") { await testStroke() }
+                if let r = testRegion() { part = .pattern; settings.repeatRect = r }
             }
         }
-        // painting downwards shouldn't pull the sheet away
+        // painting downwards shouldn't pull the panel away
         .interactiveDismissDisabled()
     }
 
+    private var controls: some View {
+        VStack(spacing: 8) {
+            let st = status
+            HStack(spacing: 6) {
+                Image(systemName: st.inUse ? "checkmark.circle.fill" : "minus.circle")
+                    .foregroundStyle(st.inUse ? Color.green : Color.secondary)
+                Text(st.text).font(.footnote).foregroundStyle(st.inUse ? .primary : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if let a = st.action {
+                    Button(a.title, action: a.run).font(.footnote).buttonStyle(.bordered).controlSize(.small)
+                }
+            }
+            if let busy { ProgressView(busy).font(.footnote) }
+            if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+            if part == .outline {
+                HStack(spacing: 10) {
+                    Picker("Brush", selection: $brushMode) {
+                        ForEach(Brush.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 130)
+                    Image(systemName: "circle.fill").font(.system(size: 6))
+                    Slider(value: $brush, in: 0.01...0.15)
+                    Image(systemName: "circle.fill").font(.system(size: 16))
+                }
+                HStack {
+                    Button { Task { await autoMask() } } label: { Label("Auto", systemImage: "wand.and.stars") }
+                    Spacer()
+                    Button("Keep all") { canvas.fill(255); maskChanged() }
+                    Spacer()
+                    Button("Remove sphere") { removeSphere(); maskChanged() }
+                }
+                .font(.footnote)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(busy != nil)
+            } else {
+                HStack {
+                    Text("Drag a rectangle around one pattern repeat.").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Whole image") { settings.repeatRect = [0, 0, 1, 1] }
+                        .font(.footnote).buttonStyle(.bordered).controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
     private func drag(to uv: CGPoint) {
-        switch tool {
-        case .add, .erase:
+        switch part {
+        case .outline:
             guard !canvas.isEmpty else { return }
             let p = CGPoint(x: uv.x * CGFloat(canvas.w), y: uv.y * CGFloat(canvas.h))
             canvas.stroke(from: canvas.lastPoint ?? p, to: p, radius: brush * Double(max(canvas.w, canvas.h)),
-                          value: tool == .add ? 255 : 0)
+                          value: brushMode == .add ? 255 : 0)
             canvas.lastPoint = p
             // a new overlay image per touch event is more than the screen needs; 30 Hz is plenty
             if CACurrentMediaTime() - canvas.lastRefresh > 1.0 / 30 { refresh() }
-        case .repeatRegion:
+        case .pattern:
             if rectStart == nil { rectStart = uv }
             let a = rectStart!
             let x0 = max(0, min(a.x, uv.x)), y0 = max(0, min(a.y, uv.y))
             let x1 = min(1, max(a.x, uv.x)), y1 = min(1, max(a.y, uv.y))
-            if x1 - x0 > 0.02 && y1 - y0 > 0.02 { region = [x0, y0, x1 - x0, y1 - y0] }
+            // the cloth shows the new repeat as you drag (it only changes the texture mapping)
+            if x1 - x0 > 0.02 && y1 - y0 > 0.02 { settings.repeatRect = [x0, y0, x1 - x0, y1 - y0] }
         }
     }
 
     private func endDrag() {
-        canvas.lastPoint = nil
         rectStart = nil
+        if canvas.lastPoint != nil {
+            canvas.lastPoint = nil
+            maskChanged()
+        }
+    }
+
+    /// Redraws the overlay and hands the mask to the cloth viewer (which reshapes the cloth if the outline is in use).
+    private func maskChanged() {
         refresh()
+        maskDirty = true
+        onMaskChange(canvas.px, canvas.w, canvas.h)
     }
 
     private func load() async {
@@ -234,14 +313,16 @@ struct MaskEditorView: View {
         busy = nil
         guard let result else { message = "Build the RTI first."; return }
         base = result.0
+        originalMask = result.1
         canvas.reset(result.1, w: result.2, h: result.3)
         refresh()
     }
 
-    /// Test hook (-mask-test-stroke): a 60-point stroke at touch rate through the real drag handler, then
+    /// Test hook (-mask-test-stroke): a 60-point erase stroke at touch rate through the real drag handler, then
     /// Remove sphere, timed.
     private func testStroke() async {
-        tool = .erase
+        part = .outline
+        brushMode = .erase
         var worst = 0.0
         let t0 = CACurrentMediaTime()
         for k in 0..<60 {
@@ -253,10 +334,18 @@ struct MaskEditorView: View {
         }
         endDrag()
         let t1 = CACurrentMediaTime()
-        removeSphere(); refresh()
+        removeSphere(); maskChanged()
         let t2 = CACurrentMediaTime()
         print(String(format: "mask test: 60-point stroke %.0f ms incl. 480 ms of sleeps, worst event %.1f ms, remove sphere %.1f ms",
                      (t1 - t0) * 1000, worst * 1000, (t2 - t1) * 1000))
+    }
+
+    /// Test hook (-mask-test-region u0,v0,du,dv): sets the repeat rectangle, as a drag would.
+    private func testRegion() -> [Double]? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-mask-test-region"), i + 1 < args.count else { return nil }
+        let r = args[i + 1].split(separator: ",").compactMap { Double($0) }
+        return r.count == 4 ? r : nil
     }
 
     /// Clears the calibration sphere (plus a margin) from the mask.
@@ -276,7 +365,7 @@ struct MaskEditorView: View {
                 let handler = VNImageRequestHandler(cgImage: cg)
                 try handler.perform([req])
                 guard let obs = req.results?.first, !obs.allInstances.isEmpty else {
-                    throw RelightError.invalid("No foreground object found. Paint the cutout by hand.")
+                    throw RelightError.invalid("No foreground object found. Paint the outline by hand.")
                 }
                 let pb = try obs.generateScaledMaskForImage(forInstances: obs.allInstances, from: handler)
                 CVPixelBufferLockBaseAddress(pb, .readOnly)
@@ -307,7 +396,7 @@ struct MaskEditorView: View {
         case .success(let m):
             canvas.reset(m, w: w, h: h)
             removeSphere()
-            refresh()
+            maskChanged()
             message = "Check the edges and touch up with Add / Erase."
         case .failure(let e):
             message = e.localizedDescription
@@ -319,11 +408,14 @@ struct MaskEditorView: View {
         overlay = canvas.overlay()
     }
 
+    private func cancel() {
+        settings.tiling = originalTiling
+        settings.repeatRect = originalRect
+        if maskDirty, !originalMask.isEmpty { onMaskChange(originalMask, canvas.w, canvas.h) }
+    }
+
     private func save() {
-        repeatRect = region
-        if let img = canvas.maskImage() {
-            try? ImageUtils.write(img, to: project.rtiDir.appendingPathComponent("mask.png"), type: .png)
-        }
-        onSave()
+        guard maskDirty, let img = canvas.maskImage() else { return }
+        try? ImageUtils.write(img, to: project.rtiDir.appendingPathComponent("mask.png"), type: .png)
     }
 }

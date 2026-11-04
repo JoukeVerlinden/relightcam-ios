@@ -84,14 +84,29 @@ struct ClothScene {
         let nx = aspect <= 1 ? maxN : max(8, Int((Float(maxN) / aspect).rounded()))
         let ny = aspect <= 1 ? max(8, Int((Float(maxN) * aspect).rounded())) : maxN
 
-        // Which particles carry fabric (inside the sample and the cutout mask).
-        var active = [Bool](repeating: true, count: nx * ny)
+        // Which particles carry fabric (inside the sample and the cutout mask). The grid is 1–2 cm coarse, so
+        // particles one step outside the outline are kept too: the shader then cuts the exact edge per pixel
+        // instead of the edge following the grid in steps.
+        var inside = [Bool](repeating: true, count: nx * ny)
+        var onMask = [Bool](repeating: true, count: nx * ny)
         for j in 0..<ny {
             for i in 0..<nx {
                 let p = SIMD2((Float(i) / Float(nx - 1) - 0.5) * panel.x, (0.5 - Float(j) / Float(ny - 1)) * panel.y)
                 let m = mapping.map(p)
-                var on = m.inside
-                if on, tiling == .off, settings.useMask, let mask { on = mask(m.uv) }
+                inside[j * nx + i] = m.inside
+                if m.inside, tiling == .off, let mask { onMask[j * nx + i] = mask(m.uv) }
+            }
+        }
+        var active = [Bool](repeating: false, count: nx * ny)
+        for j in 0..<ny {
+            for i in 0..<nx where inside[j * nx + i] {
+                var on = onMask[j * nx + i]
+                for dj in -1...1 where !on {
+                    for di in -1...1 {
+                        let a = i + di, b = j + dj
+                        if a >= 0, a < nx, b >= 0, b < ny, inside[b * nx + a], onMask[b * nx + a] { on = true; break }
+                    }
+                }
                 active[j * nx + i] = on
             }
         }

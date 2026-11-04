@@ -74,8 +74,12 @@ did. Design note: [docs/cloth-viewer.md](docs/cloth-viewer.md).
   swings) or *Walk around*.
 - **Look:** sheen for silk and metal threads (a half-vector approximation), the reverse side from a second
   project, a warp grainline, and RTI / specular / shaded / normals modes.
-- **Cutout editor:** automatic textile detection (Vision), removal of the calibration sphere, Add/Erase
-  brushes, and marking the pattern-repeat region.
+- **Outline and repeat** (scissors): the viewer uses the photo in one of two ways, and this editor covers
+  both. *Outline* is the shape of the piece (automatic detection with Vision, sphere removal, Add/Erase
+  brushes). It's used whenever the sample is shown once: on the board, or with tiling off. *Repeat* is the
+  rectangle that's tiled when tiling is on. The editor says which of the two the current view uses and can
+  switch tiling. It opens in a lower panel with the cloth still running above it: a new repeat shows on the
+  cloth while you drag, and outline edits show when you lift your finger.
 - **Live AR:** the same simulation and RTI shading over the camera image, anchored on a real floor or
   table, with shadows on the real floor. Drag, pin and smooth all work in AR, gravity is real, and
   *Headlamp* lights the textile from the phone itself: walk around it to relight it.
@@ -158,8 +162,8 @@ Simulator test hooks (launch arguments):
 - Cloth viewer: `-cloth-support board|dressForm|free`, `-cloth-form …`, `-cloth-material …`,
   `-cloth-grain deg`, `-cloth-light lamp|headlamp|orbit`, `-cloth-mode n`, `-cloth-open-settings`,
   `-cloth-open-mask`, `-cloth-ar`, `-cloth-export-test`, `-log-stats`.
-- Cutout editor: `-mask-test-stroke` paints a timed 60-point stroke and removes the sphere (with
-  `-cloth-open-mask`; prints the timings).
+- Outline and repeat editor (with `-cloth-open-mask`): `-mask-test-stroke` paints a timed 60-point stroke
+  and removes the sphere (prints the timings); `-mask-test-region u0,v0,du,dv` sets the repeat rectangle.
 
 ## Limits
 

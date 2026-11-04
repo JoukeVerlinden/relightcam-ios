@@ -21,6 +21,9 @@ final class ClothModel {
     var exportedURL: URL?
     var arMode = false
     var arHint: String?
+    /// bumped when the cutout editor has a new mask for the viewer (in liveMask)
+    var maskVersion = 0
+    @ObservationIgnored var liveMask: (px: [UInt8], w: Int, h: Int)?
     let arAvailable = ARWorldTrackingConfiguration.isSupported
     @ObservationIgnored var savePins: (() -> ([ClothPin], String))?
 
@@ -47,6 +50,9 @@ struct ClothMetalView: UIViewRepresentable {
     var arMode: Bool
     /// a sheet is open on top: stop drawing and simulating so the sheet stays responsive
     var suspended = false
+    /// the cutout editor covers the lower part of the screen: keep the cloth in view above it
+    var editingCutout = false
+    var maskVersion = 0
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var renderer: ClothRenderer?
@@ -55,6 +61,7 @@ struct ClothMetalView: UIViewRepresentable {
         weak var view: MTKView?
         var coaching: ARCoachingOverlayView?
         var last = (recenter: 0, resetCloth: 0, resetCamera: 0, export: 0)
+        var lastMask = 0
 
         func setAR(_ on: Bool) {
             guard let r = renderer, let v = view, on != r.isAR else { return }
@@ -179,6 +186,7 @@ struct ClothMetalView: UIViewRepresentable {
             DispatchQueue.main.async { model.error = error.localizedDescription }
         }
         c.last = (recenter, resetCloth, resetCamera, exportRequest)
+        c.lastMask = maskVersion
         let pan = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan(_:)))
         pan.maximumNumberOfTouches = 1
         let pan2 = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.pan2(_:)))
@@ -205,6 +213,11 @@ struct ClothMetalView: UIViewRepresentable {
         r.gain = gain
         r.paused = paused
         v.isPaused = suspended
+        r.bottomInset = editingCutout ? 0.56 : 0.38
+        if c.lastMask != maskVersion {
+            c.lastMask = maskVersion
+            if let m = model.liveMask { r.setMask(m.px, width: m.w, height: m.h) }
+        }
         c.setMotion(settings.tiltMode != .off && !arMode && !suspended)
         c.setAR(arMode)
         if c.last.recenter != recenter { c.last.recenter = recenter; r.recenterTilt() }

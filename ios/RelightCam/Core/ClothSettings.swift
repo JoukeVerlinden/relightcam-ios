@@ -107,7 +107,6 @@ struct ClothSettings: Codable, Equatable {
     var sheen: Bool?
     var selfCollision = true
     var showGrainline = false
-    var useMask = true
     var verso: String?                    // folder name of another project with an RTI
     var lightMode: ClothLightMode = .lamp
     var tiltMode: ClothTiltMode = .off
