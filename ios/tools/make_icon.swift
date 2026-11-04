@@ -1,7 +1,8 @@
-// relightCam app icon (flat, symbolic): a light, a pinned textile with gold motifs and folds,
-// and the black calibration sphere with its highlight.
+// relightCam app icon: flat, one colour plus a white symbol: a light, and a textile hanging from a rod whose
+// folds are lit or shaded.
 //   mkdir -p /tmp/icon && cp tools/make_icon.swift /tmp/icon/main.swift
 //   swiftc /tmp/icon/main.swift -o /tmp/icon/mk && /tmp/icon/mk RelightCam/Assets.xcassets/AppIcon.appiconset/icon.png
+// Optional second argument: the background colour as hex (default 9E1B32).
 import Foundation
 import CoreGraphics
 import ImageIO
@@ -15,118 +16,59 @@ let ctx = CGContext(data: nil, width: Int(S), height: Int(S), bitsPerComponent: 
 ctx.translateBy(x: 0, y: S)
 ctx.scaleBy(x: S, y: -S)
 
-func rgb(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
-    CGColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: a)
+func rgb(_ hex: UInt32) -> CGColor {
+    CGColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
+let bgHex = CommandLine.arguments.count > 2 ? UInt32(CommandLine.arguments[2], radix: 16) ?? 0x9E1B32 : 0x9E1B32
+let bg = rgb(bgHex), fg = rgb(0xFFFFFF)
 
-// background
-let bg = CGGradient(colorsSpace: cs, colors: [rgb(0x232B45), rgb(0x0B0E19)] as CFArray, locations: [0, 1])!
-ctx.drawLinearGradient(bg, start: CGPoint(x: 0.2, y: 0), end: CGPoint(x: 0.8, y: 1),
-                       options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+ctx.setFillColor(bg)
+ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
 
-// the light: a small sun, upper left
-let sun = CGPoint(x: 0.205, y: 0.19)
-let glow = CGGradient(colorsSpace: cs, colors: [rgb(0xFFC857, 0.35), rgb(0xFFC857, 0)] as CFArray, locations: [0, 1])!
-ctx.drawRadialGradient(glow, startCenter: sun, startRadius: 0, endCenter: sun, endRadius: 0.2, options: [])
-ctx.setFillColor(rgb(0xFFC857))
+// the light, upper left
+let sun = CGPoint(x: 0.205, y: 0.205)
+ctx.setFillColor(fg)
 ctx.fillEllipse(in: CGRect(x: sun.x - 0.05, y: sun.y - 0.05, width: 0.1, height: 0.1))
-ctx.setStrokeColor(rgb(0xFFC857))
-ctx.setLineWidth(0.016)
+ctx.setStrokeColor(fg)
+ctx.setLineWidth(0.028)
 ctx.setLineCap(.round)
 for k in 0..<8 {
     let a = CGFloat(k) / 8 * 2 * .pi
-    ctx.move(to: CGPoint(x: sun.x + cos(a) * 0.075, y: sun.y + sin(a) * 0.075))
-    ctx.addLine(to: CGPoint(x: sun.x + cos(a) * 0.105, y: sun.y + sin(a) * 0.105))
+    ctx.move(to: CGPoint(x: sun.x + cos(a) * 0.082, y: sun.y + sin(a) * 0.082))
+    ctx.addLine(to: CGPoint(x: sun.x + cos(a) * 0.11, y: sun.y + sin(a) * 0.11))
 }
 ctx.strokePath()
 
-// the textile: pinned along the top, three scallops at the hem
-let top: CGFloat = 0.30, hem: CGFloat = 0.80
-let xl: CGFloat = 0.33, xr: CGFloat = 0.83
-let cloth = CGMutablePath()
-cloth.move(to: CGPoint(x: xl, y: top))
-cloth.addLine(to: CGPoint(x: xr, y: top))
-cloth.addLine(to: CGPoint(x: xr + 0.035, y: hem))
-let w = (xr + 0.035 - (xl - 0.035)) / 3
-for k in 0..<3 {
-    let x1 = xr + 0.035 - CGFloat(k) * w, x0 = x1 - w
-    cloth.addQuadCurve(to: CGPoint(x: x0, y: hem), control: CGPoint(x: (x0 + x1) / 2, y: hem + 0.06))
+// the rod
+let rodY: CGFloat = 0.335, rodL: CGFloat = 0.31, rodR: CGFloat = 0.81
+ctx.setLineWidth(0.044)
+ctx.move(to: CGPoint(x: rodL, y: rodY))
+ctx.addLine(to: CGPoint(x: rodR, y: rodY))
+ctx.strokePath()
+
+// the textile below the rod, in four folds: the ones facing the light white, the others shaded
+// (white mixed into the background, still one flat colour each)
+func mixed(_ t: CGFloat) -> CGColor {
+    let c = bg.components!
+    return CGColor(red: c[0] + (1 - c[0]) * t, green: c[1] + (1 - c[1]) * t, blue: c[2] + (1 - c[2]) * t, alpha: 1)
 }
-cloth.addLine(to: CGPoint(x: xl, y: top))
-cloth.closeSubpath()
-
-// soft shadow on the wall
-ctx.saveGState()
-ctx.translateBy(x: 0.025, y: 0.025)
-ctx.addPath(cloth)
-ctx.setFillColor(rgb(0x000000, 0.35))
-ctx.fillPath()
-ctx.restoreGState()
-
-ctx.saveGState()
-ctx.addPath(cloth)
-ctx.clip()
-ctx.setFillColor(rgb(0xB0122C))
-ctx.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
-// fold bands: darker valleys between the scallops
-for k in 1..<3 {
-    let xb = xl - 0.035 + CGFloat(k) * w
-    let band = CGMutablePath()
-    band.move(to: CGPoint(x: xb - 0.012, y: top))
-    band.addLine(to: CGPoint(x: xb + 0.012, y: top))
-    band.addLine(to: CGPoint(x: xb + 0.05, y: hem + 0.02))
-    band.addLine(to: CGPoint(x: xb - 0.03, y: hem + 0.02))
-    band.closeSubpath()
-    ctx.addPath(band)
-    ctx.setFillColor(rgb(0x7A0A1F))
+let shade = mixed(0.62)
+let top: CGFloat = 0.385, hem: CGFloat = 0.80
+let tl: CGFloat = 0.355, tr: CGFloat = 0.765, hl: CGFloat = 0.285, hr: CGFloat = 0.835
+let n = 4
+for k in 0..<n {
+    let t0 = tl + CGFloat(k) * (tr - tl) / CGFloat(n), t1 = tl + CGFloat(k + 1) * (tr - tl) / CGFloat(n)
+    let h0 = hl + CGFloat(k) * (hr - hl) / CGFloat(n), h1 = hl + CGFloat(k + 1) * (hr - hl) / CGFloat(n)
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: t0, y: top))
+    p.addLine(to: CGPoint(x: t1, y: top))
+    p.addLine(to: CGPoint(x: h1, y: hem))
+    p.addQuadCurve(to: CGPoint(x: h0, y: hem), control: CGPoint(x: (h0 + h1) / 2, y: hem + 0.07))
+    p.closeSubpath()
+    ctx.addPath(p)
+    ctx.setFillColor(k % 2 == 0 ? fg : shade)
     ctx.fillPath()
 }
-// gold diamonds (the lampas motif)
-for r in 0..<4 {
-    for c in 0..<4 {
-        let cx = xl + 0.065 + CGFloat(c) * 0.125 + CGFloat(r) * 0.012
-        let cy = top + 0.075 + CGFloat(r) * 0.125
-        let s: CGFloat = 0.036
-        let d = CGMutablePath()
-        d.move(to: CGPoint(x: cx, y: cy - s))
-        d.addLine(to: CGPoint(x: cx + s, y: cy))
-        d.addLine(to: CGPoint(x: cx, y: cy + s))
-        d.addLine(to: CGPoint(x: cx - s, y: cy))
-        d.closeSubpath()
-        ctx.addPath(d)
-        ctx.setFillColor(rgb(0xF2C14E))
-        ctx.fillPath()
-    }
-}
-// raking light: a sheen along the lit side of the first fold
-let sheen = CGMutablePath()
-sheen.move(to: CGPoint(x: xl + 0.02, y: top))
-sheen.addLine(to: CGPoint(x: xl + 0.07, y: top))
-sheen.addLine(to: CGPoint(x: xl + 0.06, y: hem + 0.03))
-sheen.addLine(to: CGPoint(x: xl - 0.01, y: hem + 0.03))
-sheen.closeSubpath()
-ctx.addPath(sheen)
-ctx.setFillColor(rgb(0xFFFFFF, 0.18))
-ctx.fillPath()
-ctx.restoreGState()
-
-// pins
-for x in [xl + 0.03, xr - 0.03] {
-    ctx.setFillColor(rgb(0xF2C14E))
-    ctx.fillEllipse(in: CGRect(x: x - 0.024, y: top - 0.024, width: 0.048, height: 0.048))
-}
-
-// the calibration sphere with its highlight towards the light
-let sc = CGPoint(x: 0.29, y: 0.77), sr: CGFloat = 0.125
-ctx.setFillColor(rgb(0x05060A))
-ctx.fillEllipse(in: CGRect(x: sc.x - sr, y: sc.y - sr, width: 2 * sr, height: 2 * sr))
-// a thin even outline separates the black sphere from the dark background
-ctx.setStrokeColor(rgb(0x3B4770))
-ctx.setLineWidth(0.008)
-ctx.strokeEllipse(in: CGRect(x: sc.x - sr, y: sc.y - sr, width: 2 * sr, height: 2 * sr))
-ctx.setFillColor(rgb(0xFFFFFF))
-let hl = CGPoint(x: sc.x - sr * 0.38, y: sc.y - sr * 0.42)
-ctx.fillEllipse(in: CGRect(x: hl.x - 0.026, y: hl.y - 0.026, width: 0.052, height: 0.052))
 
 let url = URL(fileURLWithPath: CommandLine.arguments[1])
 let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!

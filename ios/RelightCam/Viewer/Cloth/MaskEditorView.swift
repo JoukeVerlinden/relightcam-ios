@@ -1,6 +1,84 @@
 import SwiftUI
 import Vision
 
+/// The mask pixels (white = textile) and the red overlay that shows the cut-away parts, edited in place.
+/// A class on purpose: with the mask in a @State array, every pixel write was a SwiftUI state change that
+/// copied the whole mask and compared it with the old one. A brush dab touches ~1,000 pixels, so painting
+/// stalled the main thread for seconds and iOS killed the app.
+final class MaskCanvas {
+    private(set) var w = 0
+    private(set) var h = 0
+    private(set) var px: [UInt8] = []
+    private var rgba: [UInt8] = []
+    /// Previous touch of the current stroke (mask pixels), so fast strokes are joined up.
+    var lastPoint: CGPoint?
+    var lastRefresh: CFTimeInterval = 0
+
+    var isEmpty: Bool { w == 0 }
+
+    func reset(_ m: [UInt8], w: Int, h: Int) {
+        self.w = w
+        self.h = h
+        px = m
+        rgba = [UInt8](repeating: 0, count: w * h * 4)
+        for i in 0..<(w * h) { tint(i, m[i]) }
+    }
+
+    func fill(_ v: UInt8) { reset([UInt8](repeating: v, count: w * h), w: w, h: h) }
+
+    /// A round brush of radius r swept from a to b (mask pixels).
+    func stroke(from a: CGPoint, to b: CGPoint, radius r: Double, value v: UInt8) {
+        guard w > 0 else { return }
+        let ax = Double(a.x), ay = Double(a.y), bx = Double(b.x), by = Double(b.y)
+        let dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy
+        let x0 = max(0, Int(min(ax, bx) - r)), x1 = min(w - 1, Int(max(ax, bx) + r) + 1)
+        let y0 = max(0, Int(min(ay, by) - r)), y1 = min(h - 1, Int(max(ay, by) + r) + 1)
+        guard x0 <= x1, y0 <= y1 else { return }
+        let r2 = r * r
+        for y in y0...y1 {
+            let py = Double(y) + 0.5
+            for x in x0...x1 {
+                let pxx = Double(x) + 0.5
+                // distance from the pixel to the segment
+                let t = len2 > 0 ? min(1, max(0, ((pxx - ax) * dx + (py - ay) * dy) / len2)) : 0
+                let ex = pxx - (ax + t * dx), ey = py - (ay + t * dy)
+                if ex * ex + ey * ey <= r2 { set(y * w + x, v) }
+            }
+        }
+    }
+
+    /// Clears a disc (mask pixels).
+    func clear(cx: Double, cy: Double, r: Double) {
+        stroke(from: CGPoint(x: cx, y: cy), to: CGPoint(x: cx, y: cy), radius: r, value: 0)
+    }
+
+    func overlay() -> UIImage? {
+        guard w > 0, let provider = CGDataProvider(data: Data(rgba) as CFData),
+              let img = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                                space: ImageUtils.sRGB, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { return nil }
+        return UIImage(cgImage: img)
+    }
+
+    func maskImage() -> CGImage? {
+        guard w > 0 else { return nil }
+        var out = [UInt8](repeating: 255, count: w * h * 4)
+        for i in 0..<(w * h) { out[i * 4] = px[i]; out[i * 4 + 1] = px[i]; out[i * 4 + 2] = px[i] }
+        return ImageUtils.makeImage(rgba: out, width: w, height: h)
+    }
+
+    @inline(__always) private func set(_ i: Int, _ v: UInt8) {
+        if px[i] != v { px[i] = v; tint(i, v) }
+    }
+
+    /// Cut-away pixels get a translucent red (premultiplied (200, 30, 40) at alpha 150).
+    @inline(__always) private func tint(_ i: Int, _ v: UInt8) {
+        let o = i * 4
+        if v < 128 { rgba[o] = 118; rgba[o + 1] = 18; rgba[o + 2] = 24; rgba[o + 3] = 150 }
+        else { rgba[o] = 0; rgba[o + 1] = 0; rgba[o + 2] = 0; rgba[o + 3] = 0 }
+    }
+}
+
 /// Cut the textile out of its background (and the calibration sphere), and mark one pattern repeat for tiling.
 /// Saves rti/mask.png (white = textile); relight's own viewers ignore the file.
 struct MaskEditorView: View {
@@ -16,16 +94,23 @@ struct MaskEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var base: UIImage?
-    @State private var mask: [UInt8] = []
-    @State private var mw = 0
-    @State private var mh = 0
+    @State private var canvas = MaskCanvas()
     @State private var overlay: UIImage?
+    /// Edited here and written back on Save, so dragging the rectangle doesn't update the cloth viewer behind
+    /// the sheet on every touch, and Cancel discards it.
+    @State private var region: [Double]
     @State private var tool: Tool = .add
     @State private var brush: Double = 0.04
     @State private var busy: String?
     @State private var message: String?
     @State private var rectStart: CGPoint?
-    @State private var lastRefresh = Date.distantPast
+
+    init(project: Project, repeatRect: Binding<[Double]>, onSave: @escaping () -> Void) {
+        self.project = project
+        _repeatRect = repeatRect
+        self.onSave = onSave
+        _region = State(initialValue: repeatRect.wrappedValue)
+    }
 
     var body: some View {
         NavigationStack {
@@ -40,29 +125,21 @@ struct MaskEditorView: View {
                             Image(uiImage: base).resizable().frame(width: w, height: h).offset(x: origin.x, y: origin.y)
                         }
                         if let overlay {
-                            Image(uiImage: overlay).resizable().frame(width: w, height: h).offset(x: origin.x, y: origin.y)
+                            Image(uiImage: overlay).resizable().interpolation(.none)
+                                .frame(width: w, height: h).offset(x: origin.x, y: origin.y)
                                 .allowsHitTesting(false)
                         }
-                        if repeatRect.count == 4, !(repeatRect == [0, 0, 1, 1]) {
+                        if region.count == 4, !(region == [0, 0, 1, 1]) {
                             Rectangle().stroke(Color.yellow, lineWidth: 2)
-                                .frame(width: w * repeatRect[2], height: h * repeatRect[3])
-                                .offset(x: origin.x + w * repeatRect[0], y: origin.y + h * repeatRect[1])
+                                .frame(width: w * region[2], height: h * region[3])
+                                .offset(x: origin.x + w * region[0], y: origin.y + h * region[1])
                                 .allowsHitTesting(false)
                         }
                     }
                     .contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 0).onChanged { v in
-                        let uv = CGPoint(x: (v.location.x - origin.x) / w, y: (v.location.y - origin.y) / h)
-                        switch tool {
-                        case .add, .erase: paint(at: uv, value: tool == .add ? 255 : 0)
-                        case .repeatRegion:
-                            if rectStart == nil { rectStart = uv }
-                            let a = rectStart!
-                            let x0 = max(0, min(a.x, uv.x)), y0 = max(0, min(a.y, uv.y))
-                            let x1 = min(1, max(a.x, uv.x)), y1 = min(1, max(a.y, uv.y))
-                            if x1 - x0 > 0.02 && y1 - y0 > 0.02 { repeatRect = [x0, y0, x1 - x0, y1 - y0] }
-                        }
-                    }.onEnded { _ in rectStart = nil; refresh() })
+                        drag(to: CGPoint(x: (v.location.x - origin.x) / w, y: (v.location.y - origin.y) / h))
+                    }.onEnded { _ in endDrag() })
                 }
                 VStack(spacing: 10) {
                     if let busy { ProgressView(busy) }
@@ -75,7 +152,7 @@ struct MaskEditorView: View {
                         HStack {
                             Text("Drag a rectangle around one pattern repeat (used when Tiling is on).").font(.caption)
                             Spacer()
-                            Button("Whole image") { repeatRect = [0, 0, 1, 1] }.font(.caption)
+                            Button("Whole image") { region = [0, 0, 1, 1] }.font(.caption)
                         }
                     } else {
                         HStack {
@@ -87,11 +164,12 @@ struct MaskEditorView: View {
                     HStack {
                         Button { Task { await autoMask() } } label: { Label("Auto", systemImage: "wand.and.stars") }
                         Spacer()
-                        Button("Keep all") { fill(255) }
+                        Button("Keep all") { canvas.fill(255); refresh() }
                         Spacer()
                         Button("Remove sphere") { removeSphere(); refresh() }
                     }
                     .buttonStyle(.bordered)
+                    .disabled(busy != nil)
                 }
                 .padding()
                 .background(.bar)
@@ -102,8 +180,38 @@ struct MaskEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save(); dismiss() } }
             }
-            .task { await load() }
+            .task {
+                await load()
+                if ProcessInfo.processInfo.arguments.contains("-mask-test-stroke") { await testStroke() }
+            }
         }
+        // painting downwards shouldn't pull the sheet away
+        .interactiveDismissDisabled()
+    }
+
+    private func drag(to uv: CGPoint) {
+        switch tool {
+        case .add, .erase:
+            guard !canvas.isEmpty else { return }
+            let p = CGPoint(x: uv.x * CGFloat(canvas.w), y: uv.y * CGFloat(canvas.h))
+            canvas.stroke(from: canvas.lastPoint ?? p, to: p, radius: brush * Double(max(canvas.w, canvas.h)),
+                          value: tool == .add ? 255 : 0)
+            canvas.lastPoint = p
+            // a new overlay image per touch event is more than the screen needs; 30 Hz is plenty
+            if CACurrentMediaTime() - canvas.lastRefresh > 1.0 / 30 { refresh() }
+        case .repeatRegion:
+            if rectStart == nil { rectStart = uv }
+            let a = rectStart!
+            let x0 = max(0, min(a.x, uv.x)), y0 = max(0, min(a.y, uv.y))
+            let x1 = min(1, max(a.x, uv.x)), y1 = min(1, max(a.y, uv.y))
+            if x1 - x0 > 0.02 && y1 - y0 > 0.02 { region = [x0, y0, x1 - x0, y1 - y0] }
+        }
+    }
+
+    private func endDrag() {
+        canvas.lastPoint = nil
+        rectStart = nil
+        refresh()
     }
 
     private func load() async {
@@ -126,48 +234,42 @@ struct MaskEditorView: View {
         busy = nil
         guard let result else { message = "Build the RTI first."; return }
         base = result.0
-        mask = result.1
-        mw = result.2
-        mh = result.3
+        canvas.reset(result.1, w: result.2, h: result.3)
         refresh()
     }
 
-    private func paint(at uv: CGPoint, value: UInt8) {
-        guard mw > 0 else { return }
-        let cx = Double(uv.x) * Double(mw), cy = Double(uv.y) * Double(mh)
-        let r = brush * Double(max(mw, mh))
-        for y in max(0, Int(cy - r))..<min(mh, Int(cy + r) + 1) {
-            for x in max(0, Int(cx - r))..<min(mw, Int(cx + r) + 1) {
-                let dx = Double(x) + 0.5 - cx, dy = Double(y) + 0.5 - cy
-                if dx * dx + dy * dy <= r * r { mask[y * mw + x] = value }
-            }
+    /// Test hook (-mask-test-stroke): a 60-point stroke at touch rate through the real drag handler, then
+    /// Remove sphere, timed.
+    private func testStroke() async {
+        tool = .erase
+        var worst = 0.0
+        let t0 = CACurrentMediaTime()
+        for k in 0..<60 {
+            let t = Double(k) / 59
+            let e0 = CACurrentMediaTime()
+            drag(to: CGPoint(x: 0.2 + 0.6 * t, y: 0.5 + 0.2 * sin(t * 6)))
+            worst = max(worst, CACurrentMediaTime() - e0)
+            try? await Task.sleep(nanoseconds: 8_000_000)
         }
-        // redrawing the overlay on every touch event floods the main thread; 30 Hz is plenty
-        if Date().timeIntervalSince(lastRefresh) > 1.0 / 30 { refresh() }
-    }
-
-    private func fill(_ v: UInt8) {
-        mask = [UInt8](repeating: v, count: mw * mh)
-        refresh()
+        endDrag()
+        let t1 = CACurrentMediaTime()
+        removeSphere(); refresh()
+        let t2 = CACurrentMediaTime()
+        print(String(format: "mask test: 60-point stroke %.0f ms incl. 480 ms of sleeps, worst event %.1f ms, remove sphere %.1f ms",
+                     (t1 - t0) * 1000, worst * 1000, (t2 - t1) * 1000))
     }
 
     /// Clears the calibration sphere (plus a margin) from the mask.
     private func removeSphere() {
-        guard let s = project.meta.sphere, project.meta.frameWidth > 0, mw > 0 else { return }
-        let k = Double(mw) / Double(project.meta.frameWidth)
-        let cx = s.cx * k, cy = s.cy * k, r = s.r * k * 1.25
-        for y in 0..<mh {
-            for x in 0..<mw {
-                let dx = Double(x) + 0.5 - cx, dy = Double(y) + 0.5 - cy
-                if dx * dx + dy * dy <= r * r { mask[y * mw + x] = 0 }
-            }
-        }
+        guard let s = project.meta.sphere, project.meta.frameWidth > 0, !canvas.isEmpty else { return }
+        let k = Double(canvas.w) / Double(project.meta.frameWidth)
+        canvas.clear(cx: s.cx * k, cy: s.cy * k, r: s.r * k * 1.25)
     }
 
     private func autoMask() async {
         guard let cg = base?.cgImage else { return }
         busy = "Finding the textile…"
-        let w = mw, h = mh
+        let w = canvas.w, h = canvas.h
         let result: Result<[UInt8], Error> = await Task.detached {
             do {
                 let req = VNGenerateForegroundInstanceMaskRequest()
@@ -203,7 +305,7 @@ struct MaskEditorView: View {
         busy = nil
         switch result {
         case .success(let m):
-            mask = m
+            canvas.reset(m, w: w, h: h)
             removeSphere()
             refresh()
             message = "Check the edges and touch up with Add / Erase."
@@ -213,24 +315,13 @@ struct MaskEditorView: View {
     }
 
     private func refresh() {
-        guard mw > 0 else { return }
-        lastRefresh = Date()
-        var px = [UInt8](repeating: 0, count: mw * mh * 4)
-        for i in 0..<(mw * mh) where mask[i] < 128 {
-            px[i * 4] = 200; px[i * 4 + 1] = 30; px[i * 4 + 2] = 40; px[i * 4 + 3] = 150
-        }
-        guard let provider = CGDataProvider(data: Data(px) as CFData),
-              let img = CGImage(width: mw, height: mh, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: mw * 4,
-                                space: ImageUtils.sRGB, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { return }
-        overlay = UIImage(cgImage: img)
+        canvas.lastRefresh = CACurrentMediaTime()
+        overlay = canvas.overlay()
     }
 
     private func save() {
-        guard mw > 0 else { return }
-        var px = [UInt8](repeating: 255, count: mw * mh * 4)
-        for i in 0..<(mw * mh) { px[i * 4] = mask[i]; px[i * 4 + 1] = mask[i]; px[i * 4 + 2] = mask[i] }
-        if let img = ImageUtils.makeImage(rgba: px, width: mw, height: mh) {
+        repeatRect = region
+        if let img = canvas.maskImage() {
             try? ImageUtils.write(img, to: project.rtiDir.appendingPathComponent("mask.png"), type: .png)
         }
         onSave()

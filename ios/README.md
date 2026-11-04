@@ -158,6 +158,8 @@ Simulator test hooks (launch arguments):
 - Cloth viewer: `-cloth-support board|dressForm|free`, `-cloth-form …`, `-cloth-material …`,
   `-cloth-grain deg`, `-cloth-light lamp|headlamp|orbit`, `-cloth-mode n`, `-cloth-open-settings`,
   `-cloth-open-mask`, `-cloth-ar`, `-cloth-export-test`, `-log-stats`.
+- Cutout editor: `-mask-test-stroke` paints a timed 60-point stroke and removes the sphere (with
+  `-cloth-open-mask`; prints the timings).
 
 ## Limits
 
