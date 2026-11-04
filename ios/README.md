@@ -61,6 +61,10 @@ Simulator test hooks (launch arguments): `-autorun` (demo → detect → HSH bui
   export the photos + `.lp` and process them in RelightLab.
 - Planes are written as JPEG quality 1.0, because ImageIO only disables chroma subsampling at maximum quality.
 
+## Planned
+
+- [3D cloth viewer for historical textiles](docs/cloth-viewer.md): drape the RTI on a simulated cloth, move it by touch or tilt, under a fixed or moving light (design note, not implemented).
+
 ## License
 
 GPL-3.0 (see [`../LICENSE-GPL-3.0`](../LICENSE-GPL-3.0)). relightCam is an independent port and isn't affiliated with CNR-ISTI. It follows the
