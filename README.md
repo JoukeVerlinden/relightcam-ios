@@ -7,6 +7,10 @@
 > Qt needed) and exports for OpenLIME and RelightLab. See [ios/README.md](ios/README.md). Everything
 > outside `ios/` is upstream relight.
 >
+> **Light dome:** relightCam also works with a light dome, and the University of Antwerp is developing an
+> open-source dome you can build yourself (laser-cut parts, an Arduino and affordable electronics). Its
+> designs will be published here. See [Light dome](ios/README.md#light-dome).
+>
 > <img src="ios/docs/relightcam-demo.gif" width="240" alt="relightCam demo">
 
 **Relight** is a library and set of tools to create and view relightable images (RTI).

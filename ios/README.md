@@ -28,7 +28,7 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
 
 1. **Capture.** Put the iPhone on a tripod with a shiny black sphere next to the object, and move a hand-held
    light between shots (focus, exposure and white balance locked; ≈12 MP frames on an interval timer).
-   Or import photos, or try **Demo capture: silk textile**.
+   Or use a [light dome](#light-dome), import photos, or try **Demo capture: silk textile**.
 2. **Light directions.** Place a circle on the sphere; the app finds the highlight in every photo.
    Enter the sphere's real diameter to give the RTI its real size.
 3. **Build RTI.** PTM or HSH, written in relight's web format.
@@ -37,6 +37,25 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
    - **Open in 3D cloth viewer**: the same RTI draped on a simulated cloth (below).
 5. **Export.** An RTI zip with relight's OpenLIME web viewer; photos plus a `.lp` file for RelightLab; or a
    `.usdz` of the current drape.
+
+## Light dome
+
+A light dome replaces the hand-held light with fixed LEDs that switch on one at a time, so a capture is
+faster and easier to repeat. relightCam works with a dome as it is, because it finds every light direction
+from the highlight on the sphere:
+
+- Mount the iPhone at the top of the dome, looking down at the object, with the sphere in view.
+- Lock focus, exposure and white balance with one LED on. Then set the capture interval (1, 2, 3 or 5 s) to
+  the dome's LED step and start both together (the app counts down 3 s before the first photo).
+- Or take the photos with the dome's own camera and import them. Keep the sphere in every photo.
+
+relightCam doesn't read a dome's own light positions (a `.lp` file) yet, so the sphere has to stay in view.
+
+### Open-source dome (in development)
+
+The University of Antwerp is developing an open-source light dome that you can build yourself, with
+laser-cut parts, an Arduino and affordable electronics. The laser-cutting files, the electronics and the
+Arduino code will be published in this repository.
 
 ## Pipeline
 
