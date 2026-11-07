@@ -48,7 +48,7 @@ HOW IT WORKS
 4. Export. Share an RTI with a web viewer (OpenLIME), the photos with a .lp light file for RelightLab, or a 3D model (USDZ).
 
 BUILD YOUR OWN DOME
-A dome makes captures faster and easier to repeat. The University of Antwerp is developing an open-source light dome that you can build yourself, with laser-cut parts, an Arduino and affordable electronics.
+A dome makes captures faster and easier to repeat. The University of Antwerp is developing an open-source light dome that you can build yourself, with laser-cut parts, an Arduino and affordable electronics. Its designs will be shared in the relightCam repository on GitHub (link below).
 
 Everything runs on the iPhone: no account, no tracking, no internet connection needed.
 
