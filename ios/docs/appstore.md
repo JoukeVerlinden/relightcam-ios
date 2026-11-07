@@ -70,4 +70,4 @@ RTI,PTM,HSH,relight,textile,fabric,heritage,museum,conservation,cloth,drape,AR,r
 
 Made in the iPhone 17 Pro Max (6.9", 1320 × 2868) and iPad Pro 13" (2064 × 2752) simulators with the demo capture, plus one AR frame recorded on an iPhone 13 Pro.
 
-App Store Connect now requires the iPhone 6.3" size (1206 × 2622, "iPhone with Dynamic Island, medium display"); those are scaled copies of the 6.9" set. The 6.9" set goes in the optional large-display slot. Upload screenshots to the Asset Library, then pick them per size in the version's Media Manager.
+Upload screenshots to the Asset Library, then pick them per size in the version's Media Manager (Browse Assets; the click order sets the order). The 6.9" set sits in the "iPhone with Dynamic Island, large display" slot, and the required 6.3" slot reuses it automatically ("Using Existing Assets"). The iPad set sits in the required iPad 13" slot.
