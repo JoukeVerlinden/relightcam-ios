@@ -178,7 +178,6 @@
 				INFOPLIST_FILE = "Config/Info-Debug.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = relightCam;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "relightCam connects to a light dome over Bluetooth MIDI to switch its LEDs during a capture.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "relightCam takes a series of photos under a moving light to build a relightable image (RTI).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -211,7 +210,6 @@
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = relightCam;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "relightCam connects to a light dome over Bluetooth MIDI to switch its LEDs during a capture.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "relightCam takes a series of photos under a moving light to build a relightable image (RTI).";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

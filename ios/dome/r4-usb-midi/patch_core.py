@@ -7,7 +7,7 @@ R4 can be a USB keyboard but not a USB MIDI device. This patch:
   2. adds a MIDI interface to the USB configuration descriptor (cores/arduino/usb/USB.cpp), but only for sketches
      that define `void __USBInstallMIDI() {}` (USB.h already declares that hook). Other sketches are unchanged.
 Then a sketch that calls __USBStart() appears on a Mac or an iPhone as a class-compliant USB MIDI device and reads
-packets with TinyUSB's tud_midi_packet_read(). See ../relightcam_dome_usb.
+packets with TinyUSB's tud_midi_packet_read(). See ../relightcam_dome.
 
 Usage:  python3 patch_core.py            apply (idempotent; keeps *.orig backups)
         python3 patch_core.py --revert   restore the original files

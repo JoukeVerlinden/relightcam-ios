@@ -1,13 +1,11 @@
 import SwiftUI
 import CoreMIDI
-import CoreAudioKit
 import UniformTypeIdentifiers
 
 /// Settings for capturing with a MIDI light dome (see DomeMIDI).
 struct DomeSettingsView: View {
     @Bindable var dome: DomeMIDI
     @Environment(\.dismiss) private var dismiss
-    @State private var showBluetooth = false
     @State private var importingLights = false
     @State private var lightsError: String?
 
@@ -23,13 +21,10 @@ struct DomeSettingsView: View {
                         Text("All MIDI outputs").tag(MIDIUniqueID?.none)
                         ForEach(dome.outputs) { Text($0.name).tag(MIDIUniqueID?.some($0.id)) }
                     }
-                    Button { showBluetooth = true } label: {
-                        Label("Connect a Bluetooth MIDI device", systemImage: "antenna.radiowaves.left.and.right")
-                    }
                 } header: {
                     Text("Dome controller")
                 } footer: {
-                    Text("Pair the dome's Arduino here over Bluetooth MIDI, or connect it by USB if it is a USB MIDI device.")
+                    Text("Connect the dome's Arduino to the iPhone with a USB cable (USB-C, or Lightning with Apple's USB 3 Camera Adapter). It appears here by itself.")
                 }
 
                 Section {
@@ -84,7 +79,6 @@ struct DomeSettingsView: View {
                 } footer: {
                     Text("Set focus and exposure with this LED on, then tap Lock.")
                 }
-
             }
             .navigationTitle("Light dome")
             .navigationBarTitleDisplayMode(.inline)
@@ -109,24 +103,8 @@ struct DomeSettingsView: View {
             .alert("Can't use this file", isPresented: Binding(get: { lightsError != nil }, set: { if !$0 { lightsError = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(lightsError ?? "") }
-            .sheet(isPresented: $showBluetooth, onDismiss: { dome.refresh() }) {
-                BluetoothMIDIView { showBluetooth = false }.ignoresSafeArea()
-            }
         }
     }
-}
-
-/// Apple's Bluetooth MIDI pairing screen.
-struct BluetoothMIDIView: UIViewControllerRepresentable {
-    var onDone: () -> Void
-
-    func makeUIViewController(context: Context) -> UINavigationController {
-        let vc = CABTMIDICentralViewController()
-        vc.navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { _ in onDone() })
-        return UINavigationController(rootViewController: vc)
-    }
-
-    func updateUIViewController(_ vc: UINavigationController, context: Context) {}
 }
 
 /// Light directions seen from above (x right, y up), like the project's light plot. `highlight` marks one LED.

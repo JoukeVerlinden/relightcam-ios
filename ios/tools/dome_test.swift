@@ -117,7 +117,8 @@ Task { @MainActor in
     let r3 = await dome.runSequence(count: 5, waitLit: { false }, shoot: { _ in }, progress: { _ in })
     check(r3 == .noFrames, "no camera frames stops the run (\(r3))")
 
-    // preview LED
+    // preview LED (let the previous run's last messages arrive first)
+    try? await Task.sleep(for: .milliseconds(300))
     clearEvents()
     dome.previewLED = 27
     dome.previewOn = true
@@ -135,8 +136,8 @@ Task { @MainActor in
     if let text = try? String(contentsOf: lpURL, encoding: .utf8), let l = try? LightPositions.parse(text, name: "default") {
         let d0 = l.directions[0], d23 = l.directions[23]
         check(l.count == 24, "default .lp: 24 LEDs (\(l.count))")
-        check(abs(d0[0] - 0.150384) < 1e-6 && abs(d0[1] + 0.086824) < 1e-6 && abs(d0[2] - 0.984808) < 1e-6, "default .lp (v3): LED 1 = (0.150, -0.087, 0.985)")
-        check(abs(d23[0] - 0.709406) < 1e-6 && abs(d23[1] + 0.409576) < 1e-6 && abs(d23[2] - 0.573576) < 1e-6, "default .lp (v3): LED 24 = (0.709, -0.410, 0.574)")
+        check(abs(d0[0] - 0.150384) < 1e-6 && abs(d0[1] - 0.086824) < 1e-6 && abs(d0[2] - 0.984808) < 1e-6, "default .lp (v4): LED 1 = (0.150, 0.087, 0.985)")
+        check(abs(d23[0] - 0.709406) < 1e-6 && abs(d23[1] - 0.409576) < 1e-6 && abs(d23[2] - 0.573576) < 1e-6, "default .lp (v4): LED 24 = (0.709, 0.410, 0.574)")
         let lens = l.directions.map { ($0[0] * $0[0] + $0[1] * $0[1] + $0[2] * $0[2]).squareRoot() }
         check(lens.allSatisfy { abs($0 - 1) < 1e-6 }, "default .lp: all unit vectors")
     } else {

@@ -2,7 +2,7 @@ import Foundation
 import CoreMIDI
 import Observation
 
-/// Drives a light dome over CoreMIDI, for example an Arduino that shows up as a USB or Bluetooth MIDI device.
+/// Drives a light dome over CoreMIDI: an Arduino wired to the iPhone that shows up as a USB MIDI device.
 ///
 /// Protocol (channel 1): LED n (counted from 0) is MIDI note n. Note On (velocity 127) lights it,
 /// Note Off turns it off. "All off" sends Control Change 123 (All Notes Off) and a Note Off for every LED.

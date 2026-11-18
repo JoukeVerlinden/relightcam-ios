@@ -1,9 +1,9 @@
 # Light dome over MIDI
 
 relightCam can drive a light dome itself: during a capture it lights one LED, takes one photo,
-turns the LED off and moves on to the next. It talks to the dome's microcontroller over **CoreMIDI**, so
-any device that shows up as a MIDI output on the iPhone works: Bluetooth LE MIDI, or a class-compliant
-USB MIDI device (through USB-C, or a Lightning to USB camera adapter).
+turns the LED off and moves on to the next. It talks to the dome's microcontroller over **CoreMIDI**: an
+Arduino wired to the iPhone that shows up as a class-compliant USB MIDI device (through USB-C, or a
+Lightning to USB 3 Camera Adapter).
 
 ## Protocol
 
@@ -56,21 +56,18 @@ are rotated too.
 ## In the app
 
 1. Capture screen › interval menu (bottom left) › **Dome**.
-2. Tap the dome row › **Connect a Bluetooth MIDI device** and pick the dome (USB devices appear on
-   their own). Check the light positions, the number of LEDs (default 24), brightness and the light time
-   before each photo.
+2. Connect the dome's Arduino with a USB cable; it appears in the dome row by itself. Tap the row to check
+   the light positions, the number of LEDs (default 24), brightness and the light time before each photo.
 3. The framing LED stays on while you frame: pinch to zoom, tap to focus (or switch the slider to focus
    with the ◎ button and set it by hand, e.g. while zoomed in), then **Lock**.
 4. Press the red button. The run shows "LED *n* of *count*"; the red square stops it.
 
 ## Arduino UNO R4 WiFi + RGBW NeoPixels
 
-Two example sketches drive a WS2812B-style RGBW strip (GRBW order) on pin 6 and light only the white
-channel. Both log every LED change to a serial port at 115200 baud.
-
-**Wired to the iPhone (USB MIDI), the main setup:**
-[`../dome/relightcam_dome_usb/relightcam_dome_usb.ino`](../dome/relightcam_dome_usb/relightcam_dome_usb.ino).
-The board appears in the app's dome row as soon as it is plugged in, with no pairing. An iPhone with
+[`../dome/relightcam_dome/relightcam_dome.ino`](../dome/relightcam_dome/relightcam_dome.ino) drives a
+WS2812B-style RGBW strip (GRBW order) on pin 6, lights only the white channel, and logs every LED change
+to its USB serial port at 115200 baud. Wired to the iPhone it appears as a USB MIDI device; the board
+shows up in the app's dome row as soon as it is plugged in. An iPhone with
 Lightning needs the Lightning to USB 3 Camera Adapter.
 
 Out of the box the UNO R4 can be a USB keyboard but not a USB MIDI device: its core builds TinyUSB with
@@ -91,13 +88,7 @@ As with a USB keyboard sketch, the R4's USB-C port then belongs to the main chip
 double-press RESET (the L LED pulses) and pick the port that appears. On a Mac, allow the accessory if
 macOS asks.
 
-**Bluetooth MIDI (no cable):**
-[`../dome/relightcam_dome/relightcam_dome.ino`](../dome/relightcam_dome/relightcam_dome.ino) uses the
-R4 WiFi's ESP32-S3 module and implements the BLE-MIDI service itself with ArduinoBLE (libraries: Adafruit
-NeoPixel and ArduinoBLE). It runs on the R4 and advertises as "relightCam dome"; pair it from the dome
-row. It needs no core patch.
-
-The usual NeoPixel advice applies to both: a separate 5 V supply for the strip, a common ground with the
+The usual NeoPixel advice applies: a separate 5 V supply for the strip, a common ground with the
 Arduino, a 300–500 Ω resistor in the data line and a large capacitor across the strip's supply.
 
 ## Testing without a dome

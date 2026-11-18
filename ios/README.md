@@ -46,7 +46,7 @@ A light dome replaces the hand-held light with fixed LEDs that switch on one at 
 faster and easier to repeat. relightCam drives the dome itself over **CoreMIDI**: choose **Dome** in the
 capture screen's interval menu, and the red button lights each LED in turn (MIDI note *n* = LED *n*) and
 takes one photo per LED, using the first camera frame exposed entirely under that LED. The dome's
-controller can be a Bluetooth MIDI or USB MIDI device. Each photo records its LED number and gets that
+controller is an Arduino wired to the iPhone as a USB MIDI device. Each photo records its LED number and gets that
 LED's direction from the dome's light positions (a relight `.lp`; the current 24-LED dome is built in,
 another can be imported), so no sphere is needed.
 
