@@ -1,5 +1,7 @@
 # relightCam (iOS)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24351636.svg)](https://doi.org/10.5281/zenodo.24351636)
+
 This folder is part of a fork of [cnr-isti-vclab/relight](https://github.com/cnr-isti-vclab/relight).
 Run the commands below from this `ios/` folder.
 
@@ -228,6 +230,15 @@ Simulator test hooks (launch arguments):
 - Planes are written as JPEG quality 1.0, because ImageIO only disables chroma subsampling at maximum quality.
 - The cloth viewer's angled views and sheen are approximations, and the automatic cutout needs a real
   device (Vision foreground masks don't run in the simulator).
+
+## How to cite
+
+Verlinden, J. (2026). *relightCam: on-device RTI capture, processing and cloth visualisation for iPhone*
+(Version 1.1). Zenodo. https://doi.org/10.5281/zenodo.24351636
+
+That DOI always points to the latest version; version 1.1 itself is
+[10.5281/zenodo.24351637](https://doi.org/10.5281/zenodo.24351637). GitHub's "Cite this repository"
+button gives the same reference from [`../CITATION.cff`](../CITATION.cff).
 
 ## License
 

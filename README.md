@@ -5,7 +5,8 @@
 > PTM/HSH in relight's web format, and relights the result by dragging, tilting the phone, or walking
 > around it in AR with the phone as the lamp. It's a Swift reimplementation of relight's pipeline (no
 > Qt needed) and exports for OpenLIME and RelightLab. See [ios/README.md](ios/README.md). Everything
-> outside `ios/` is upstream relight.
+> outside `ios/` is upstream relight. Cite relightCam as
+> [10.5281/zenodo.24351636](https://doi.org/10.5281/zenodo.24351636).
 >
 > **Light dome:** relightCam also works with a light dome, and the University of Antwerp is developing an
 > open-source dome you can build yourself (laser-cut parts, an Arduino and affordable electronics). Its
