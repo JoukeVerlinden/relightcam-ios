@@ -1,5 +1,9 @@
 # Light dome over MIDI
 
+<p align="center">
+<img src="relightcam-dome.gif" width="360" alt="The UAntwerpen light dome during a capture: the LEDs light one after another">
+</p>
+
 relightCam can drive a light dome itself: during a capture it lights one LED, takes one photo,
 turns the LED off and moves on to the next. It talks to the dome's microcontroller over **CoreMIDI**: an
 Arduino wired to the iPhone that shows up as a class-compliant USB MIDI device (through USB-C, or a

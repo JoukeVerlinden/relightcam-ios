@@ -47,6 +47,14 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
 
 ## Light dome
 
+<p align="center">
+<img src="docs/relightcam-dome.gif" width="360" alt="The UAntwerpen light dome: a laser-cut frame over a textile, the iPhone on top and the Arduino beside it; after one tap the LEDs light one after another">
+</p>
+
+The current UAntwerpen dome: a laser-cut frame with 24 RGBW LEDs over a textile, an Arduino UNO R4 WiFi
+beside it and the iPhone on top, wired by USB. One tap on the red button and relightCam lights each LED
+in turn and takes one photo per LED.
+
 A light dome replaces the hand-held light with fixed LEDs that switch on one at a time, so a capture is
 faster and easier to repeat. relightCam drives the dome itself over **CoreMIDI**: choose **Dome** in the
 capture screen's interval menu, and the red button lights each LED in turn (MIDI note *n* = LED *n*) and
