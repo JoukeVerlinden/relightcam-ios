@@ -1,0 +1,65 @@
+cff-version: 1.2.0
+message: "If you use relightCam, please cite it as below."
+type: software
+title: "relightCam: on-device RTI capture, processing and cloth visualisation for iPhone"
+version: "1.1"
+date-released: 2026-11-18
+authors:
+  - family-names: Verlinden
+    given-names: Jouke
+    affiliation: University of Antwerp
+repository-code: "https://github.com/JoukeVerlinden/relightcam-ios"
+url: "https://github.com/JoukeVerlinden/relightcam-ios/tree/relightcam/ios"
+license: GPL-3.0-or-later
+abstract: >-
+  relightCam captures relightable images (RTI, reflectance transformation imaging) with an iPhone and
+  processes them on the phone: light directions from the highlight on a reflective sphere, or from the
+  calibrated LEDs of a light dome that the app drives over USB MIDI, and a PTM or HSH fit written in the
+  web format of the relight toolkit (CNR-ISTI Visual Computing Lab). The result can be explored in a 2D
+  viewer, draped on a simulated 3D cloth (board, historical dress forms, free cloth) and shown in AR, and
+  exported for OpenLIME and RelightLab. It is aimed at the documentation of textiles and other flat objects
+  in cultural heritage and design education. The app lives in the ios/ folder of this fork of relight;
+  everything outside ios/ is the upstream relight toolkit by CNR-ISTI. The ios/dome/ folder holds the
+  Arduino sketch for the dome controller and a patch that adds USB MIDI to the Arduino UNO R4 core.
+keywords:
+  - reflectance transformation imaging
+  - RTI
+  - polynomial texture maps
+  - hemispherical harmonics
+  - cultural heritage
+  - textiles
+  - light dome
+  - iOS
+references:
+  - type: software
+    title: "relight"
+    authors:
+      - name: "Visual Computing Lab, ISTI-CNR"
+    repository-code: "https://github.com/cnr-isti-vclab/relight"
+  - type: software
+    title: "OpenLIME"
+    authors:
+      - name: "Visual Computing Lab, ISTI-CNR, and CRS4"
+    repository-code: "https://github.com/cnr-isti-vclab/openlime"
+  - type: conference-paper
+    title: "Polynomial texture maps"
+    authors:
+      - family-names: Malzbender
+        given-names: Tom
+      - family-names: Gelb
+        given-names: Dan
+      - family-names: Wolters
+        given-names: Hans
+    collection-title: "Proceedings of SIGGRAPH 2001"
+    year: 2001
+  - type: conference-paper
+    title: "A compact representation of relightable images for the web"
+    authors:
+      - family-names: Ponchio
+        given-names: Federico
+      - family-names: Corsini
+        given-names: Massimiliano
+      - family-names: Scopigno
+        given-names: Roberto
+    collection-title: "Proceedings of Web3D 2018"
+    year: 2018
