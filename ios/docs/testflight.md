@@ -8,7 +8,19 @@ relightCam captures relightable images (RTIs) with an iPhone and explores them i
 
 Developed at the University of Antwerp. No account needed. Everything is processed on the iPhone.
 
-## What to Test
+## What to Test (version 1.1)
+
+New: relightCam can drive a light dome. Connect the dome's Arduino (UNO R4 WiFi with the relightCam sketch, see github.com/JoukeVerlinden/relightcam-ios › ios/docs/dome-midi.md) to the iPhone with a USB cable; it shows up by itself as a USB MIDI device.
+1. Start a capture and choose Dome in the interval menu (bottom left). The dome row should show the Arduino and 24 LEDs.
+2. Frame the object with the framing LED on, pinch to zoom, tap to focus (or switch the slider to manual focus with ◎), then tap Lock.
+3. Press the red button: the app lights each LED in turn and takes one photo per LED. The dome's light positions (built in, or import your own .lp in the dome settings) give every photo its light direction, so no sphere is needed. Tap Done and build the RTI.
+4. In the dome settings, try the light time before each photo (from 10 ms) and the brightness.
+
+Also new: pinch to zoom from the ultra wide to the telephoto, manual focus, and Import an RTI (import menu: a relight .zip or folder, PTM or HSH, e.g. exported from relightCam on another phone). Fixed: a crash when zooming onto the telephoto lens.
+
+No dome? The hand-held light capture and the demo capture (import menu › Demo capture: silk textile) work as before. Please report anything confusing, slow or wrong, with a screenshot if you can.
+
+## What to Test (version 1.0)
 
 No sphere or setup at hand? Use a demo capture: on the home screen, tap the import button at the top right (the arrow into a tray), then Demo capture: silk textile. It runs the whole pipeline on a synthetic silk.
 
