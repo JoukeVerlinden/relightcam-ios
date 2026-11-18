@@ -23,7 +23,7 @@ Data Not Collected, published on 7 November 2026. Privacy policy URL: https://gi
 
 - Release: manual, after App Review approval
 - Version 1.1, build 2611181819 (1.0 / 2611042239 got a Guideline 2.1 information request; the version was renamed to 1.1 with the new build). Approved and released on 18 November 2026 (174 countries; China mainland excluded).
-- Version 1.2, build 2611182322: the iOS 17 dress form icon fix, plus new screenshots and an App Preview made from the screen recording of the dome capture.
+- Version 1.2, build 2611182322: the iOS 17 dress form icon fix, plus new screenshots and an App Preview made from the screen recording of the dome capture. Submitted 18 November 2026, set to release automatically after approval (to all users at once).
 
 ### What's New in 1.2
 
