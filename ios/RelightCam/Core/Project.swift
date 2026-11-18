@@ -26,6 +26,8 @@ struct ProjectMeta: Codable {
     var sphereDiameterMM: Double?
     /// 3D cloth viewer settings, so a sample opens the same way next time
     var cloth: ClothSettings?
+    /// light dome captures: the LED (0-based, = MIDI note) that lit each frame, by file name
+    var leds: [String: Int]?
 }
 
 /// One capture session = one folder in Documents/Projects (visible in the Files app).

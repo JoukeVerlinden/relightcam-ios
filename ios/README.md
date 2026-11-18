@@ -41,15 +41,14 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
 ## Light dome
 
 A light dome replaces the hand-held light with fixed LEDs that switch on one at a time, so a capture is
-faster and easier to repeat. relightCam works with a dome as it is, because it finds every light direction
-from the highlight on the sphere:
+faster and easier to repeat. relightCam drives the dome itself over **CoreMIDI**: choose **Dome** in the
+capture screen's interval menu, and the red button lights each LED in turn (MIDI note *n* = LED *n*) and
+takes one photo per LED, using the first camera frame exposed entirely under that LED. The dome's
+controller can be a Bluetooth MIDI or USB MIDI device. Light directions still come from the sphere, and
+each photo records its LED number.
 
-- Mount the iPhone at the top of the dome, looking down at the object, with the sphere in view.
-- Lock focus, exposure and white balance with one LED on. Then set the capture interval (1, 2, 3 or 5 s) to
-  the dome's LED step and start both together (the app counts down 3 s before the first photo).
-- Or take the photos with the dome's own camera and import them. Keep the sphere in every photo.
-
-relightCam doesn't read a dome's own light positions (a `.lp` file) yet, so the sphere has to stay in view.
+The protocol, the capture timing and an example sketch for an Arduino UNO R4 WiFi with an RGBW NeoPixel
+strip are in [docs/dome-midi.md](docs/dome-midi.md).
 
 ### Open-source dome (in development)
 
@@ -166,6 +165,9 @@ swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/rc/main.swift -o
 
 mkdir -p /tmp/ct && cp tools/cloth_test.swift /tmp/ct/main.swift
 swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ct/main.swift -o /tmp/ct/test && /tmp/ct/test
+
+mkdir -p /tmp/dt && cp tools/dome_test.swift /tmp/dt/main.swift
+swiftc RelightCam/Capture/DomeMIDI.swift /tmp/dt/main.swift -o /tmp/dt/test && /tmp/dt/test
 ```
 
 - `pipeline_test` renders a synthetic capture (embossed tablet plus a mirror sphere, 34 known lights),
@@ -173,6 +175,8 @@ swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ct/main.swift -o
   The exported folders were also checked in relight's OpenLIME viewer.
 - `cloth_test` checks stretch, penetration, rest state and timing for every support, material and dress
   form, plus the Peirce calibration.
+- `dome_test` runs the light dome sequence (55 LEDs) against a virtual MIDI device: one photo per LED,
+  on → photo → off, never two LEDs lit, all off at the end and after a cancel.
 
 Simulator test hooks (launch arguments):
 - Pipeline and screens: `-autorun` / `-autorun-textile` (demo → detect → HSH build), `-open-viewer`,
@@ -182,6 +186,7 @@ Simulator test hooks (launch arguments):
 - Cloth viewer: `-cloth-support board|dressForm|free`, `-cloth-form …`, `-cloth-material …`,
   `-cloth-grain deg`, `-cloth-light lamp|headlamp|orbit`, `-cloth-mode n`, `-cloth-open-settings`,
   `-cloth-open-mask`, `-cloth-ar`, `-cloth-export-test`, `-log-stats`.
+- Light dome (Debug builds): `-dome-virtual` adds a "Simulated dome" MIDI output that logs every message.
 - Outline and repeat editor (with `-cloth-open-mask`): `-mask-test-stroke` paints a timed 60-point stroke
   and removes the sphere (prints the timings); `-mask-test-region u0,v0,du,dv` sets the repeat rectangle.
 

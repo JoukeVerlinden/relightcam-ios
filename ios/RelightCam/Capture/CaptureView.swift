@@ -64,8 +64,17 @@ struct CaptureView: View {
     @State private var timer: Timer?
     @State private var hudTimer: Timer?
     @State private var flash = false
+    @State private var dome = DomeMIDI.shared
+    @AppStorage("dome.mode") private var domeMode = false
+    @State private var domeTask: Task<Void, Never>?
+    @State private var domeLED: Int?
+    @State private var domeMessage: String?
+    @State private var showDomeSettings = false
+    @State private var onScreen = false
 
     private let intervals: [(String, Double)] = [("Manual", 0), ("1 s", 1), ("2 s", 2), ("3 s", 3), ("5 s", 5)]
+    /// interval picker tag for the light dome
+    private let domeTag: Double = -1
 
     var body: some View {
         ZStack {
@@ -86,11 +95,25 @@ struct CaptureView: View {
             VStack(spacing: 0) {
                 topBar
                 Spacer()
-                if project.meta.frames.isEmpty && !running { hint }
+                if let n = domeLED {
+                    Text("LED \(n + 1) of \(dome.ledCount)")
+                        .font(.headline.monospacedDigit()).foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 8).background(.ultraThinMaterial, in: Capsule())
+                        .padding(.bottom, 8)
+                } else if let m = domeMessage {
+                    note(m)
+                } else if project.meta.frames.isEmpty && !running {
+                    domeMode ? note(domeHint) : note(hintText)
+                }
                 controls
             }
         }
         .statusBarHidden()
+        .sheet(isPresented: $showDomeSettings) { DomeSettingsView(dome: dome) }
+        .onChange(of: domeMode) { _, on in
+            domeMessage = nil
+            if on { dome.refresh(); dome.showPreview() } else { dome.allOff() }
+        }
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             camera.framesDir = project.framesDir
@@ -98,9 +121,13 @@ struct CaptureView: View {
             camera.onSaved = { name, w, h in project.appendFrame(name, width: w, height: h) }
             camera.start()
             hudTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in camera.refreshExposureText() }
+            onScreen = true
+            if domeMode { dome.refresh(); dome.showPreview() }
         }
         .onDisappear {
+            onScreen = false
             stopInterval()
+            if domeMode { dome.allOff() }
             hudTimer?.invalidate()
             camera.stop()
             UIApplication.shared.isIdleTimerDisabled = false
@@ -142,15 +169,40 @@ struct CaptureView: View {
         .padding(.top, 8)
     }
 
-    private var hint: some View {
-        Text("Tripod · dark room · glossy black sphere in view.\nTap to focus, lock exposure, then move a hand-held light around the object between shots: low and high, all directions, same distance.")
+    private let hintText = "Tripod · dark room · glossy black sphere in view.\nTap to focus, lock exposure, then move a hand-held light around the object between shots: low and high, all directions, same distance."
+
+    private var domeHint: String {
+        guard dome.hasOutput else { return "Light dome: no MIDI device yet. Tap the dome row below to pair the dome's Arduino." }
+        return dome.previewOn
+            ? "Light dome: frame the object and the sphere with LED \(dome.previewLED + 1) on, tap to focus, then Lock. The red button lights each LED in turn and takes one photo per LED."
+            : "Light dome: frame the object and the sphere, tap to focus, then Lock. The red button lights each LED in turn and takes one photo per LED."
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
             .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.white)
             .padding(10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal).padding(.bottom, 8)
     }
 
+    private var domeRow: some View {
+        Button { showDomeSettings = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: dome.hasOutput ? "light.recessed.fill" : "light.recessed")
+                Text(dome.hasOutput ? "\(dome.ledCount) LEDs · \(dome.outputSummary)" : "Light dome: no MIDI device")
+                    .font(.subheadline).lineLimit(1)
+                Spacer()
+                Image(systemName: "gearshape")
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .disabled(running)
+    }
+
     private var controls: some View {
         VStack(spacing: 12) {
+            if domeMode { domeRow }
             HStack(spacing: 12) {
                 Image(systemName: "sun.max").foregroundStyle(.secondary)
                 Slider(value: Binding(get: { Double(camera.exposureBias) }, set: { camera.setBias(Float($0)) }), in: -3...2)
@@ -168,8 +220,10 @@ struct CaptureView: View {
                 .disabled(running)
             }
             HStack {
-                Picker("Interval", selection: $interval) {
+                Picker("Interval", selection: Binding(get: { domeMode ? domeTag : interval },
+                                                      set: { v in if v == domeTag { domeMode = true } else { domeMode = false; interval = v } })) {
                     ForEach(intervals, id: \.1) { Text($0.0).tag($0.1) }
+                    Text("Dome").tag(domeTag)
                 }
                 .pickerStyle(.menu)
                 .tint(.white)
@@ -198,10 +252,10 @@ struct CaptureView: View {
         Button(action: shutterTapped) {
             ZStack {
                 Circle().stroke(.white, lineWidth: 4).frame(width: 74, height: 74)
-                if interval > 0 && (running || countdown > 0) {
+                if (interval > 0 || domeMode) && (running || countdown > 0) {
                     RoundedRectangle(cornerRadius: 6).fill(.red).frame(width: 30, height: 30)
                 } else {
-                    Circle().fill(interval > 0 ? Color.red : Color.white).frame(width: 60, height: 60)
+                    Circle().fill(interval > 0 || domeMode ? Color.red : Color.white).frame(width: 60, height: 60)
                 }
             }
         }
@@ -209,6 +263,10 @@ struct CaptureView: View {
     }
 
     private func shutterTapped() {
+        if domeMode {
+            if running { stopInterval() } else { startDome() }
+            return
+        }
         if !camera.isLocked { camera.setLocked(true) }
         if interval == 0 {
             shoot()
@@ -230,16 +288,59 @@ struct CaptureView: View {
         }
     }
 
-    private func shoot() {
-        guard camera.capture() else { return }
+    @discardableResult
+    private func shoot() -> String? {
+        guard let name = camera.capture() else { return nil }
         AudioServicesPlaySystemSound(1108)
         flash = true
         withAnimation(.easeOut(duration: 0.25)) { flash = false }
+        return name
+    }
+
+    /// Light dome: one photo per LED, switched over MIDI (see DomeMIDI).
+    private func startDome() {
+        domeMessage = nil
+        dome.refresh()
+        guard dome.hasOutput else { showDomeSettings = true; return }
+        // lock with the framing LED still on, so exposure fits one LED
+        if !camera.isLocked { camera.setLocked(true) }
+        running = true
+        let count = dome.ledCount
+        domeTask = Task { @MainActor in
+            // give the lock a moment to apply before the framing LED goes off
+            try? await Task.sleep(for: .milliseconds(150))
+            let reason = await dome.runSequence(
+                count: count,
+                waitLit: {
+                    await camera.waitForSaves(max: 1)
+                    return await camera.waitForFreshFrame()
+                },
+                shoot: { n in
+                    if let name = shoot() {
+                        var leds = project.meta.leds ?? [:]
+                        leds[name] = n
+                        project.meta.leds = leds
+                    }
+                },
+                progress: { domeLED = $0 })
+            domeLED = nil
+            running = false
+            domeTask = nil
+            switch reason {
+            case .finished: domeMessage = "\(count) LEDs done. Tap Done to mark the sphere, or the red button to capture again."
+            case .cancelled: domeMessage = "Stopped. The photos taken so far are kept."
+            case .noFrames: domeMessage = "The camera stopped delivering frames, so the run was stopped."
+            }
+            if onScreen && domeMode { dome.showPreview() }
+        }
     }
 
     private func stopInterval() {
         timer?.invalidate()
         timer = nil
+        domeTask?.cancel()
+        domeTask = nil
+        domeLED = nil
         running = false
         countdown = 0
     }

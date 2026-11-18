@@ -221,6 +221,9 @@ struct HelpView: View {
                     Text("2. Choose an interval (2 s is a good start) and press the red button. After a 3-second countdown the app takes a photo at every click.")
                     Text("3. Between clicks, move the light to a new spot. Keep it at the same distance (roughly 3–4× the object size). Go all the way around at several heights, from low raking light (~15°) to high (~75°). 30–60 photos is plenty.")
                 }
+                Section("Light dome (optional)") {
+                    Text("With a MIDI light dome, choose Dome in the capture screen's interval menu. Pair the dome under the dome row (Bluetooth MIDI or USB), frame with the framing LED on, tap Lock, then press the red button: relightCam lights each LED in turn and takes one photo per LED.")
+                }
                 Section("Process") {
                     Text("Mark the sphere, detect the lights, build the RTI, then explore it: drag to move the light, or switch on Tilt and tilt the phone.")
                     Text("For the highest quality, export the photos with the .lp file and process them in RelightLab on a desktop.")

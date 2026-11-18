@@ -11,6 +11,15 @@
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
+		<!-- UserDefaults: the app's own light dome settings -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
 		<!-- CACurrentMediaTime: frame timing for the cloth simulation -->
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>

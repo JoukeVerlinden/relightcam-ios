@@ -27,6 +27,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     @ObservationIgnored private let saveQueue = DispatchQueue(label: "relightcam.save")
     @ObservationIgnored private let bufferLock = NSLock()
     @ObservationIgnored private var latestBuffer: CVPixelBuffer?
+    @ObservationIgnored private var latestPTS = CMTime.invalid
     @ObservationIgnored private let ciContext = CIContext()
     @ObservationIgnored private var input: AVCaptureDeviceInput?
     @ObservationIgnored private let output = AVCaptureVideoDataOutput()
@@ -187,18 +188,49 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         bufferLock.lock()
         latestBuffer = pb
+        latestPTS = pts
         bufferLock.unlock()
     }
 
-    /// Saves the most recent frame as a JPEG. Returns false when no frame is available yet.
+    private func newestFrameTime() -> CMTime {
+        bufferLock.lock()
+        defer { bufferLock.unlock() }
+        return latestPTS
+    }
+
+    /// For the light dome: waits until a frame arrives whose exposure began after this call, so a light
+    /// switched on before the call is in it. The timestamp may mark the start or the middle of the
+    /// exposure, so the exposure time is added to be safe. Returns false after `timeout` seconds.
+    @MainActor
+    func waitForFreshFrame(timeout: Double = 3) async -> Bool {
+        let clock = session.synchronizationClock ?? CMClockGetHostTimeClock()
+        let exposure = device?.exposureDuration ?? CMTime(value: 1, timescale: 30)
+        let after = CMTimeAdd(CMClockGetTime(clock), exposure.isValid ? exposure : CMTime(value: 1, timescale: 30))
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline && !Task.isCancelled {
+            let t = newestFrameTime()
+            if t.isValid && CMTimeCompare(t, after) >= 0 { return true }
+            try? await Task.sleep(for: .milliseconds(4))
+        }
+        return false
+    }
+
+    /// Waits until at most `n` photos are still being written, so held camera buffers can't run out.
+    @MainActor
+    func waitForSaves(max n: Int) async {
+        while pendingSaves > n && !Task.isCancelled { try? await Task.sleep(for: .milliseconds(5)) }
+    }
+
+    /// Saves the most recent frame as a JPEG. Returns its file name, or nil when no frame is available yet.
     @discardableResult
-    func capture() -> Bool {
+    func capture() -> String? {
         bufferLock.lock()
         let pb = latestBuffer
         bufferLock.unlock()
-        guard let pb, let dir = framesDir else { return false }
+        guard let pb, let dir = framesDir else { return nil }
         let name = String(format: "frame_%03d.jpg", nextIndex)
         nextIndex += 1
         let orientation = Self.orientation(for: captureRotation)
@@ -226,7 +258,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
                 }
             }
         }
-        return true
+        return name
     }
 
     static func orientation(for angle: CGFloat) -> CGImagePropertyOrientation {
