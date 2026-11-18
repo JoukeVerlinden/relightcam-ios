@@ -34,19 +34,33 @@ the camera stops delivering frames. With the default light time and 30 fps, one 
 
 On an iPhone (iJouke (2), real camera, simulated dome) the frame for each LED arrived 45–75 ms after
 the light time, so a 24-LED run took 6.5 s. If the timestamps can't be compared, the third frame after the
-light time is used instead. The dome settings' **Recent** section (with **Copy**) lists the LEDs switched
-and how many MIDI outputs each reached, the frame waits, the photos and why a run ended.
+light time is used instead. Debug builds print every dome event to the console.
 
-Light directions still come from the shiny sphere, exactly as with a hand-held light. Because every
-frame records its LED, a later version can calibrate the dome once and reuse the directions.
+Each photo records its LED number and gets that LED's direction from the dome's light positions (below),
+so the sphere is optional.
+
+## Light positions (.lp)
+
+The dome's light positions come from a relight `.lp` file: line *n* of the list is LED *n*. The app ships
+with the current UAntwerpen dome (24 LEDs, `RelightCam/Capture/DomeDefault.lp.txt`, rings at about 80°,
+65°, 50° and 35° elevation, six LEDs each), and the dome settings can import another `.lp` (its number of
+lights becomes the LED count) or go back to the default. With **Give photos these directions** on, every
+dome photo gets its LED's direction as soon as it is saved, so the project can build an RTI without a
+sphere; marking the sphere afterwards replaces them. The project screen says where its directions came
+from, and the .lp export writes them out again.
+
+The file's x and y axes must match the photos: x to the right of the photo, y to its top, z towards the
+camera (relight's convention). If the phone is mounted rotated relative to the calibration, the directions
+are rotated too.
 
 ## In the app
 
 1. Capture screen › interval menu (bottom left) › **Dome**.
 2. Tap the dome row › **Connect a Bluetooth MIDI device** and pick the dome (USB devices appear on
-   their own). Set the number of LEDs (default 24), brightness and the light time before each photo;
-   **Light each LED in turn** checks the wiring.
-3. The framing LED stays on while you frame: tap to focus, then **Lock**.
+   their own). Check the light positions, the number of LEDs (default 24), brightness and the light time
+   before each photo.
+3. The framing LED stays on while you frame: pinch to zoom, tap to focus (or switch the slider to focus
+   with the ◎ button and set it by hand, e.g. while zoomed in), then **Lock**.
 4. Press the red button. The run shows "LED *n* of *count*"; the red square stops it.
 
 ## Arduino UNO R4 WiFi + RGBW NeoPixels

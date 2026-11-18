@@ -55,13 +55,20 @@ struct ProjectView: View {
                         LightPlot(project: project).frame(width: 96, height: 96)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("\(project.usableIndices.count) of \(project.meta.frames.count) usable").font(.headline)
-                            Text("Each dot is one light position seen from above. Good coverage = dots all around, at several heights.")
-                                .font(.caption).foregroundStyle(.secondary)
+                            if let from = project.meta.lightsFrom {
+                                Text("From the light dome (\(from)): each dot is one LED seen from above. No sphere needed.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                Text("Each dot is one light position seen from above. Good coverage = dots all around, at several heights.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
                 Button { showSphere = true } label: {
-                    Label(project.lightsAreCurrent ? "Adjust sphere & re-detect" : "Mark sphere & detect lights", systemImage: "circle.dashed")
+                    Label(project.meta.lightsFrom != nil ? "Use the sphere instead"
+                          : project.lightsAreCurrent ? "Adjust sphere & re-detect" : "Mark sphere & detect lights",
+                          systemImage: "circle.dashed")
                 }
                 .disabled(project.meta.frames.isEmpty)
             } header: { Text("1 · Light directions") }

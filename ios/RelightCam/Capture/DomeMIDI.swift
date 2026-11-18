@@ -27,26 +27,20 @@ final class DomeMIDI {
     var previewOn: Bool { didSet { defaults.set(previewOn, forKey: "dome.previewOn") } }
     /// Note On velocity, 1…127: the LED brightness (the example sketch maps 127 to full white)
     var velocity: Int { didSet { defaults.set(velocity, forKey: "dome.velocity") } }
+    /// the dome's light positions (line n of the .lp = LED n): the bundled default or an imported file
+    private(set) var lights: LightPositions?
+    /// give dome photos the direction of their LED, so the sphere isn't needed
+    var useLights: Bool { didSet { defaults.set(useLights, forKey: "dome.useLights") } }
+    var lightsAreCustom: Bool { defaults.string(forKey: "dome.lightsName") != nil }
+    static let defaultLightsName = "UAntwerpen dome, 24 LEDs"
     private(set) var lit: Int?
     private(set) var lastError: String?
-    /// the last few dome events, shown in the dome settings to diagnose a run
-    private(set) var recent: [String] = []
-
+    /// Debug builds print dome events to the console.
     func log(_ s: String) {
-        let t = Date()
-        let ms = Int(t.timeIntervalSince1970 * 1000) % 1000
-        recent.append(String(format: "%@.%03d %@", Self.clock.string(from: t), ms, s))
-        if recent.count > 80 { recent.removeFirst(recent.count - 80) }
         #if DEBUG
-        print("[dome] \(recent.last!)")
+        print("[dome] \(s)")
         #endif
     }
-
-    private static let clock: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
 
     static let maxLEDs = 128
 
@@ -55,13 +49,18 @@ final class DomeMIDI {
     @ObservationIgnored private var port = MIDIPortRef()
     @ObservationIgnored private let channel: UInt8 = 0
 
-    init(clientName: String = "relightCam", defaults: UserDefaults = .standard) {
+    /// where an imported .lp is kept
+    @ObservationIgnored let customLightsURL: URL
+
+    init(clientName: String = "relightCam", defaults: UserDefaults = .standard, lightsFile: URL? = nil) {
         self.defaults = defaults
+        customLightsURL = lightsFile ?? Self.defaultCustomLightsURL
         ledCount = (defaults.object(forKey: "dome.ledCount") as? Int) ?? 24
         settleMS = (defaults.object(forKey: "dome.settleMS") as? Int) ?? 200
         previewLED = (defaults.object(forKey: "dome.previewLED") as? Int) ?? 0
         previewOn = (defaults.object(forKey: "dome.previewOn") as? Bool) ?? true
         velocity = (defaults.object(forKey: "dome.velocity") as? Int) ?? 127
+        useLights = (defaults.object(forKey: "dome.useLights") as? Bool) ?? true
         selectedOutput = (defaults.object(forKey: "dome.output") as? Int).map { MIDIUniqueID($0) }
         var status = MIDIClientCreateWithBlock(clientName as CFString, &client) { [weak self] note in
             if note.pointee.messageID == .msgSetupChanged {
@@ -71,6 +70,63 @@ final class DomeMIDI {
         if status == noErr { status = MIDIOutputPortCreate(client, "LEDs" as CFString, &port) }
         if status != noErr { lastError = "CoreMIDI error \(status)"; log(lastError!) }
         refresh()
+        loadLights()
+    }
+
+    // MARK: - Light positions
+
+    /// Where an imported .lp is kept (Application Support, not visible in the Files app).
+    static var defaultCustomLightsURL: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("dome-lights.lp")
+    }
+
+    func loadLights() {
+        if let name = defaults.string(forKey: "dome.lightsName"),
+           let text = try? String(contentsOf: customLightsURL, encoding: .utf8),
+           let l = try? LightPositions.parse(text, name: name) {
+            lights = l
+        } else if let url = Bundle.main.url(forResource: "DomeDefault.lp", withExtension: "txt"),
+                  let text = try? String(contentsOf: url, encoding: .utf8) {
+            lights = try? LightPositions.parse(text, name: Self.defaultLightsName)
+        } else {
+            lights = nil
+        }
+    }
+
+    /// Reads an .lp chosen by the user, keeps a copy, and sets the LED count to its number of lights.
+    func importLights(from url: URL) throws {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        let data = try Data(contentsOf: url)
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
+            throw LightPositions.ParseError.empty
+        }
+        let l = try LightPositions.parse(text, name: url.lastPathComponent)
+        try text.write(to: customLightsURL, atomically: true, encoding: .utf8)
+        defaults.set(l.name, forKey: "dome.lightsName")
+        lights = l
+        ledCount = min(l.count, Self.maxLEDs)
+        if previewLED >= ledCount { previewLED = ledCount - 1 }
+        log("light positions: \(l.name), \(l.count) LEDs")
+    }
+
+    func useDefaultLights() {
+        defaults.removeObject(forKey: "dome.lightsName")
+        try? FileManager.default.removeItem(at: customLightsURL)
+        loadLights()
+        if let l = lights {
+            ledCount = min(l.count, Self.maxLEDs)
+            if previewLED >= ledCount { previewLED = ledCount - 1 }
+            log("light positions: \(l.name)")
+        }
+    }
+
+    /// Direction of LED n (0-based) from the light file, when that is switched on.
+    func direction(forLED n: Int) -> [Double]? {
+        guard useLights, let l = lights, n >= 0, n < l.count else { return nil }
+        return l.directions[n]
     }
 
     /// Re-reads the list of MIDI outputs (also called automatically when devices come and go).

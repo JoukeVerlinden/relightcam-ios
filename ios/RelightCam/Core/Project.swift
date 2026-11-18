@@ -28,6 +28,8 @@ struct ProjectMeta: Codable {
     var cloth: ClothSettings?
     /// light dome captures: the LED (0-based, = MIDI note) that lit each frame, by file name
     var leds: [String: Int]?
+    /// name of the dome light file the light directions came from (nil when they came from the sphere)
+    var lightsFrom: String?
 }
 
 /// One capture session = one folder in Documents/Projects (visible in the Files app).
@@ -61,7 +63,34 @@ final class Project: Identifiable, Hashable {
         return hs.indices.filter { hs[$0].valid && !ex.contains($0) }
     }
 
-    var lightsAreCurrent: Bool { meta.highlights?.count == meta.frames.count && meta.sphere != nil }
+    var lightsAreCurrent: Bool {
+        meta.highlights?.count == meta.frames.count && (meta.sphere != nil || meta.lightsFrom != nil)
+    }
+
+    /// Light dome: gives every photo that has an LED the direction of that LED. Photos without one keep
+    /// their earlier direction, or none. Returns how many photos got a direction from the dome.
+    @discardableResult
+    func applyDomeLights(source: String, direction: (Int) -> [Double]?) -> Int {
+        guard let leds = meta.leds else { return 0 }
+        let old = meta.highlights ?? []
+        var hs: [Highlight] = []
+        var n = 0
+        for (i, f) in meta.frames.enumerated() {
+            if let led = leds[f], let d = direction(led) {
+                hs.append(Highlight(x: 0, y: 0, valid: true, dir: d))
+                n += 1
+            } else if i < old.count {
+                hs.append(old[i])
+            } else {
+                hs.append(Highlight(x: 0, y: 0, valid: false, dir: [0, 0, 1]))
+            }
+        }
+        guard n > 0 else { return 0 }
+        meta.highlights = hs
+        meta.lightsFrom = source
+        save()
+        return n
+    }
 
     /// mm per pixel of the RTI (from the sphere diameter), for relight's pixelSizeInMM.
     func rtiPixelSizeMM(rtiWidth: Int) -> Double? {

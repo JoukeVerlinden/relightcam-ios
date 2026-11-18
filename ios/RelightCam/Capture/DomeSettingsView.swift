@@ -1,14 +1,15 @@
 import SwiftUI
 import CoreMIDI
 import CoreAudioKit
+import UniformTypeIdentifiers
 
 /// Settings for capturing with a MIDI light dome (see DomeMIDI).
 struct DomeSettingsView: View {
     @Bindable var dome: DomeMIDI
     @Environment(\.dismiss) private var dismiss
     @State private var showBluetooth = false
-    @State private var testRun: Task<Void, Never>?
-    @State private var testLED: Int?
+    @State private var importingLights = false
+    @State private var lightsError: String?
 
     var body: some View {
         NavigationStack {
@@ -32,6 +33,38 @@ struct DomeSettingsView: View {
                 }
 
                 Section {
+                    if let l = dome.lights {
+                        HStack(spacing: 14) {
+                            DirectionsPlot(directions: l.directions).frame(width: 84, height: 84)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(l.name).font(.headline).lineLimit(2)
+                                Text("\(l.count) LEDs\(dome.lightsAreCustom ? "" : " (default)")").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Toggle("Give photos these directions", isOn: $dome.useLights)
+                        if dome.ledCount != l.count {
+                            Button {
+                                dome.ledCount = min(l.count, DomeMIDI.maxLEDs)
+                            } label: {
+                                Label("The file has \(l.count) LEDs, the dome is set to \(dome.ledCount). Use \(l.count)", systemImage: "exclamationmark.triangle")
+                            }
+                        }
+                    } else {
+                        Text("No light positions").foregroundStyle(.secondary)
+                    }
+                    Button { importingLights = true } label: { Label("Import an .lp file", systemImage: "doc.badge.plus") }
+                    if dome.lightsAreCustom {
+                        Button { dome.useDefaultLights() } label: {
+                            Label("Use the default (\(DomeMIDI.defaultLightsName))", systemImage: "arrow.uturn.backward")
+                        }
+                    }
+                } header: {
+                    Text("Light positions")
+                } footer: {
+                    Text("A relight .lp file: line 1 of the list is LED 1, line 2 is LED 2, and so on. With it, each dome photo gets its LED's light direction, so the sphere isn't needed. The x and y axes must match how the phone sits on the dome (x to the right of the photo, y to its top).")
+                }
+
+                Section {
                     Stepper("LEDs: \(dome.ledCount)", value: $dome.ledCount, in: 1...DomeMIDI.maxLEDs)
                     VStack(alignment: .leading) {
                         Text("Brightness: \(Int((Double(dome.velocity) / 127 * 100).rounded())) %")
@@ -41,7 +74,7 @@ struct DomeSettingsView: View {
                 } header: {
                     Text("LEDs")
                 } footer: {
-                    Text("Each LED is lit this long before its photo, then the app saves the first camera frame exposed entirely under it and turns the LED off. Longer is steadier; shorter is faster.")
+                    Text("Each LED is lit this long before its photo, then the app saves the first camera frame exposed entirely under it and turns the LED off. Longer is steadier; shorter is faster. LED 1 is MIDI note 0 on channel 1, LED 2 is note 1, and so on.")
                 }
 
                 Section {
@@ -52,43 +85,6 @@ struct DomeSettingsView: View {
                     Text("Set focus and exposure with this LED on, then tap Lock.")
                 }
 
-                Section {
-                    Button {
-                        if testRun == nil { runThrough() } else { stopTest() }
-                    } label: {
-                        if let n = testLED {
-                            Label("Stop (LED \(n + 1) of \(dome.ledCount))", systemImage: "stop.fill")
-                        } else {
-                            Label("Light each LED in turn", systemImage: "play.fill")
-                        }
-                    }
-                    .disabled(!dome.hasOutput)
-                    Button { stopTest(); dome.allOff() } label: { Label("All LEDs off", systemImage: "lightbulb.slash") }
-                        .disabled(!dome.hasOutput)
-                } header: {
-                    Text("Test")
-                } footer: {
-                    Text("LED 1 is MIDI note 0, LED 2 is note 1, and so on, on channel 1. Note On lights an LED (velocity = brightness), Note Off turns it off.")
-                }
-
-                Section {
-                    if dome.recent.isEmpty {
-                        Text("Nothing yet.").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(Array(dome.recent.suffix(30).reversed().enumerated()), id: \.offset) { _, line in
-                            Text(line).font(.caption2.monospaced()).textSelection(.enabled)
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("Recent")
-                        Spacer()
-                        Button("Copy") { UIPasteboard.general.string = dome.recent.joined(separator: "\n") }
-                            .font(.caption).disabled(dome.recent.isEmpty)
-                    }
-                } footer: {
-                    Text("LEDs switched, camera frame waits and photos of the last runs, newest first.")
-                }
             }
             .navigationTitle("Light dome")
             .navigationBarTitleDisplayMode(.inline)
@@ -96,37 +92,27 @@ struct DomeSettingsView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .onAppear { dome.refresh() }
-            .onDisappear { stopTest() }
-            .onChange(of: dome.previewOn) { if testRun == nil { dome.showPreview() } }
-            .onChange(of: dome.previewLED) { if testRun == nil { dome.showPreview() } }
-            .onChange(of: dome.velocity) { if testRun == nil { dome.showPreview() } }
+            .onChange(of: dome.previewOn) { dome.showPreview() }
+            .onChange(of: dome.previewLED) { dome.showPreview() }
+            .onChange(of: dome.velocity) { dome.showPreview() }
             .onChange(of: dome.ledCount) {
                 if dome.previewLED >= dome.ledCount { dome.previewLED = dome.ledCount - 1 }
             }
+            .fileImporter(isPresented: $importingLights, allowedContentTypes: [.item]) { result in
+                switch result {
+                case .success(let url):
+                    do { try dome.importLights(from: url) } catch { lightsError = error.localizedDescription }
+                case .failure(let e):
+                    lightsError = e.localizedDescription
+                }
+            }
+            .alert("Can't use this file", isPresented: Binding(get: { lightsError != nil }, set: { if !$0 { lightsError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(lightsError ?? "") }
             .sheet(isPresented: $showBluetooth, onDismiss: { dome.refresh() }) {
                 BluetoothMIDIView { showBluetooth = false }.ignoresSafeArea()
             }
         }
-    }
-
-    private func runThrough() {
-        testRun = Task { @MainActor in
-            dome.allOff()
-            for n in 0..<dome.ledCount {
-                if Task.isCancelled { break }
-                testLED = n
-                dome.ledOn(n)
-                try? await Task.sleep(for: .milliseconds(250))
-            }
-            dome.allOff()
-            testLED = nil
-            testRun = nil
-            dome.showPreview()
-        }
-    }
-
-    private func stopTest() {
-        testRun?.cancel()
     }
 }
 
@@ -141,4 +127,30 @@ struct BluetoothMIDIView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: UINavigationController, context: Context) {}
+}
+
+/// Light directions seen from above (x right, y up), like the project's light plot. `highlight` marks one LED.
+struct DirectionsPlot: View {
+    let directions: [[Double]]
+    var highlight: Int?
+
+    var body: some View {
+        Canvas { ctx, size in
+            let r = min(size.width, size.height) / 2 - 4
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            for f in [1.0, cos(Double.pi / 6), cos(Double.pi / 3)] {
+                let rr = r * f
+                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - rr, y: c.y - rr, width: 2 * rr, height: 2 * rr)),
+                           with: .color(.secondary.opacity(f == 1 ? 0.8 : 0.35)), lineWidth: 1)
+            }
+            for (i, d) in directions.enumerated() where d.count == 3 {
+                let p = CGPoint(x: c.x + d[0] * r, y: c.y - d[1] * r)
+                let big = i == highlight
+                let s: CGFloat = big ? 9 : 5
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - s / 2, y: p.y - s / 2, width: s, height: s)),
+                         with: .color(big ? .yellow : .orange))
+            }
+        }
+        .accessibilityLabel("\(directions.count) light positions seen from above")
+    }
 }

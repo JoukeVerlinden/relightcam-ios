@@ -217,12 +217,12 @@ struct HelpView: View {
                     Label("A dark room.", systemImage: "moon.fill")
                 }
                 Section("Capture") {
-                    Text("1. Frame the object and the sphere, tap to focus, set the brightness with the light on, then tap Lock.")
+                    Text("1. Frame the object and the sphere (pinch to zoom), tap to focus or set it with the slider's ◎ mode, set the brightness with the light on, then tap Lock.")
                     Text("2. Choose an interval (2 s is a good start) and press the red button. After a 3-second countdown the app takes a photo at every click.")
                     Text("3. Between clicks, move the light to a new spot. Keep it at the same distance (roughly 3–4× the object size). Go all the way around at several heights, from low raking light (~15°) to high (~75°). 30–60 photos is plenty.")
                 }
                 Section("Light dome (optional)") {
-                    Text("With a MIDI light dome, choose Dome in the capture screen's interval menu. Pair the dome under the dome row (Bluetooth MIDI or USB), frame with the framing LED on, tap Lock, then press the red button: relightCam lights each LED in turn and takes one photo per LED.")
+                    Text("With a MIDI light dome, choose Dome in the capture screen's interval menu. Connect the dome (USB, or Bluetooth MIDI under the dome row), frame with the framing LED on, tap Lock, then press the red button: relightCam lights each LED in turn and takes one photo per LED. The dome's light positions (a relight .lp file, the current 24-LED dome by default) give every photo its light direction, so no sphere is needed.")
                 }
                 Section("Process") {
                     Text("Mark the sphere, detect the lights, build the RTI, then explore it: drag to move the light, or switch on Tilt and tilt the phone.")

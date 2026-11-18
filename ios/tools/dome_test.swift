@@ -1,7 +1,8 @@
 // macOS harness for the dome LED sequence (DomeMIDI). It creates a virtual MIDI device, runs the
 // sequence with a fake camera and checks the order and timing of the MIDI messages:
 //   mkdir -p /tmp/dt && cp tools/dome_test.swift /tmp/dt/main.swift &&
-//   swiftc RelightCam/Capture/DomeMIDI.swift /tmp/dt/main.swift -o /tmp/dt/test && /tmp/dt/test
+//   swiftc RelightCam/Capture/DomeMIDI.swift RelightCam/Core/LightPositions.swift /tmp/dt/main.swift -o /tmp/dt/test &&
+//   /tmp/dt/test   (run from the ios folder: it reads RelightCam/Capture/DomeDefault.lp.txt)
 import Foundation
 import CoreMIDI
 
@@ -38,7 +39,9 @@ let st = MIDIDestinationCreateWithProtocol(client, "Fake dome" as CFString, ._1_
 guard st == noErr else { print("FAIL: could not create the virtual MIDI device (\(st))"); exit(1) }
 
 let defaults = UserDefaults(suiteName: "dome-test-\(UUID().uuidString)")!
-let dome = DomeMIDI(clientName: "relightCam-test", defaults: defaults)
+let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("dome-test-\(UUID().uuidString)")
+try! FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+let dome = DomeMIDI(clientName: "relightCam-test", defaults: defaults, lightsFile: tmp.appendingPathComponent("dome-lights.lp"))
 dome.refresh()
 var failures = 0
 func check(_ ok: Bool, _ msg: String) { print((ok ? "ok   " : "FAIL ") + msg); if !ok { failures += 1 } }
@@ -126,6 +129,44 @@ Task { @MainActor in
     let seq = ev4.map { "\($0.what)\($0.what == "allnotesoff" ? "" : String($0.n))" }
     check(seq == ["on27", "off27", "on3"], "preview LED moves from 28 to 4 (\(seq))")
     dome.allOff()
+
+    // light positions (.lp)
+    let lpURL = URL(fileURLWithPath: "RelightCam/Capture/DomeDefault.lp.txt")
+    if let text = try? String(contentsOf: lpURL, encoding: .utf8), let l = try? LightPositions.parse(text, name: "default") {
+        let d0 = l.directions[0], d23 = l.directions[23]
+        check(l.count == 24, "default .lp: 24 LEDs (\(l.count))")
+        check(abs(d0[0] - 0.150384) < 1e-6 && abs(d0[1] + 0.086824) < 1e-6 && abs(d0[2] - 0.984808) < 1e-6, "default .lp (v3): LED 1 = (0.150, -0.087, 0.985)")
+        check(abs(d23[0] - 0.709406) < 1e-6 && abs(d23[1] + 0.409576) < 1e-6 && abs(d23[2] - 0.573576) < 1e-6, "default .lp (v3): LED 24 = (0.709, -0.410, 0.574)")
+        let lens = l.directions.map { ($0[0] * $0[0] + $0[1] * $0[1] + $0[2] * $0[2]).squareRoot() }
+        check(lens.allSatisfy { abs($0 - 1) < 1e-6 }, "default .lp: all unit vectors")
+    } else {
+        check(false, "default .lp found and parsed (run from the ios folder)")
+    }
+    let unix = (try? LightPositions.parse("2\na.jpg 1 0 1\nb.jpg 0 2 0\n", name: "u"))?.directions
+    check(unix?.count == 2 && abs((unix?[0][0] ?? 0) - 0.7071068) < 1e-6 && unix?[1] == [0, 1, 0], "parse: normalises, LF line ends")
+    check((try? LightPositions.parse("# comment\r\n\r\nx 0 0 1\r\ny\t0\t1\t0\r\n", name: "c"))?.count == 2, "parse: no count line, CRLF, tabs, comments")
+    check((try? LightPositions.parse("my photo 01.jpg 0 0 1", name: "s"))?.count == 1, "parse: spaces in the image name")
+    var errs: [String] = []
+    for bad in ["", "3\na 0 0 1\nb 0 1 0", "2\na 0 0 1\nb zero 1 0", "1\na 0 0 0"] {
+        do { _ = try LightPositions.parse(bad, name: "b"); errs.append("accepted") } catch { errs.append("\(error.localizedDescription.prefix(18))") }
+    }
+    check(!errs.contains("accepted"), "parse rejects empty, count mismatch, bad numbers, zero vector (\(errs))")
+    // import a custom file: it is kept, sets the LED count, and maps LEDs to directions
+    let custom = tmp.appendingPathComponent("my dome.lp")
+    try? "3\nf1 1 0 0.1\nf2 0 1 0.1\nf3 0 0 1\n".write(to: custom, atomically: true, encoding: .utf8)
+    dome.ledCount = 55
+    do { try dome.importLights(from: custom) } catch { check(false, "import: \(error)") }
+    check(dome.lights?.name == "my dome.lp" && dome.ledCount == 3 && dome.lightsAreCustom, "import: name, LED count 3, custom")
+    check(dome.direction(forLED: 2) == [0, 0, 1] && dome.direction(forLED: 3) == nil, "LED 3 → (0,0,1), no LED 4")
+    dome.useLights = false
+    check(dome.direction(forLED: 2) == nil, "switched off: no directions")
+    dome.useLights = true
+    let reloaded = DomeMIDI(clientName: "relightCam-test2", defaults: defaults, lightsFile: tmp.appendingPathComponent("dome-lights.lp"))
+    check(reloaded.lights?.count == 3 && reloaded.lights?.name == "my dome.lp", "the imported file is kept for the next launch")
+    dome.useDefaultLights()
+    check(!dome.lightsAreCustom && !FileManager.default.fileExists(atPath: tmp.appendingPathComponent("dome-lights.lp").path),
+          "back to the default removes the copy")
+    try? FileManager.default.removeItem(at: tmp)
 
     print(failures == 0 ? "ALL PASSED" : "\(failures) FAILED")
     exit(failures == 0 ? 0 : 1)

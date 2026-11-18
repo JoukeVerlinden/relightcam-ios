@@ -188,6 +188,7 @@ struct SphereView: View {
         }.value
         project.meta.sphere = sphere
         project.meta.highlights = results
+        project.meta.lightsFrom = nil
         project.meta.excluded = []
         project.save()
         detecting = false

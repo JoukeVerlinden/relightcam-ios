@@ -51,6 +51,15 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     var pendingSaves = 0
     var lastThumbnail: UIImage?
     var deviceVersion = 0
+    /// zoom relative to the 1× (wide) camera, as in the Camera app: 0.5 = ultra wide
+    var zoom: CGFloat = 1
+    private(set) var zoomRange: ClosedRange<CGFloat> = 1...1
+    /// lens position 0 (closest) … 1 (far); follows autofocus until set by hand
+    var lensPosition: Float = 0.5
+    /// focus set with the slider instead of autofocus
+    private(set) var manualFocus = false
+    /// each lens's zoom (0.5, 1, 2…5), measured from the cameras' fields of view
+    @ObservationIgnored private var lensBase: [Lens: CGFloat] = [:]
 
     func start() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -84,6 +93,29 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             return
         }
         if !lenses.contains(lens) { lens = lenses.contains(.wide) ? .wide : lenses[0] }
+        // each lens's zoom from its field of view (same 4:3 format on all of them)
+        func fov(_ l: Lens) -> CGFloat? {
+            guard let d = AVCaptureDevice.default(l.deviceType, for: .video, position: .back),
+                  let f = Self.bestFormat(d) else { return nil }
+            return CGFloat(f.videoFieldOfView)
+        }
+        let ref = fov(.wide) ?? fov(lenses[0]) ?? 70
+        var bases: [Lens: CGFloat] = [:]
+        for l in lenses {
+            if let f = fov(l), f > 0 {
+                let b = tan(ref / 2 * .pi / 180) / tan(f / 2 * .pi / 180)
+                bases[l] = (b * 10).rounded() / 10   // 0.5, 1, 2.5, 3, 5…
+            } else {
+                bases[l] = l == .ultraWide ? 0.5 : l == .wide ? 1 : 3
+            }
+        }
+        lensBase = bases
+        let lo = bases.values.min() ?? 1, hi = bases.values.max() ?? 1
+        zoomRange = lo...min(15, max(hi * 4, 4))
+        zoom = bases[lens] ?? 1
+        #if DEBUG
+        print("[zoom] lenses: \(lenses.map { "\($0.rawValue)=\(bases[$0] ?? 0)" }), range \(zoomRange)")
+        #endif
         let l = lens
         sessionQueue.async { self.setupSession(lens: l) }
     }
@@ -124,6 +156,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
             self.resolutionText = "\(dims.width)×\(dims.height)"
             self.isLocked = false
             self.exposureBias = 0
+            self.manualFocus = false
             self.deviceVersion += 1
         }
     }
@@ -144,17 +177,50 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         }
     }
 
+    func base(_ l: Lens) -> CGFloat { lensBase[l] ?? 1 }
+
+    /// "0.5×", "1×", "2.3×"
+    static func zoomLabel(_ z: CGFloat) -> String {
+        let r = (z * 10).rounded() / 10
+        return r == r.rounded() ? "\(Int(r))×" : String(format: "%.1f×", r)
+    }
+
+    /// Pinch or preset zoom: picks the longest lens that covers `z` and zooms digitally on it. Moving up to a
+    /// longer lens waits until 3 % past its zoom, so a pinch near the boundary doesn't flip between lenses.
+    /// `snap`: a lens preset, which goes straight to that lens (no 3 % margin).
+    func setZoom(_ target: CGFloat, snap: Bool = false) {
+        guard !availableLenses.isEmpty else { return }
+        let z = min(max(target, zoomRange.lowerBound), zoomRange.upperBound)
+        zoom = z
+        let sorted = availableLenses.sorted { base($0) < base($1) }
+        var pick = sorted[0]
+        for l in sorted where base(l) <= z + 0.001 { pick = l }
+        if !snap, pick != lens, base(pick) > base(lens), base(lens) <= z, z < base(pick) * 1.03 { pick = lens }
+        if pick != lens { select(pick) }   // reconfigures the session; the zoom below is queued after it
+        let b = base(pick)
+        sessionQueue.async {
+            guard let dev = self.device, (try? dev.lockForConfiguration()) != nil else { return }
+            let f = min(max(z / b, 1), min(dev.maxAvailableVideoZoomFactor, 16))
+            dev.videoZoomFactor = f
+            dev.unlockForConfiguration()
+            #if DEBUG
+            print(String(format: "[zoom] %.2fx: %@ lens, factor %.2f", z, pick.rawValue, f))
+            #endif
+        }
+    }
+
     func setLocked(_ lock: Bool) {
         captureRotation = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90
         isLocked = lock
         sessionQueue.async {
             guard let dev = self.device, (try? dev.lockForConfiguration()) != nil else { return }
             if lock {
-                if dev.isFocusModeSupported(.locked) { dev.focusMode = .locked }
+                if dev.isFocusModeSupported(.locked) && dev.focusMode != .locked { dev.focusMode = .locked }
                 if dev.isExposureModeSupported(.locked) { dev.exposureMode = .locked }
                 if dev.isWhiteBalanceModeSupported(.locked) { dev.whiteBalanceMode = .locked }
             } else {
-                if dev.isFocusModeSupported(.continuousAutoFocus) { dev.focusMode = .continuousAutoFocus }
+                // a focus set by hand stays; otherwise back to autofocus
+                if !self.manualFocus && dev.isFocusModeSupported(.continuousAutoFocus) { dev.focusMode = .continuousAutoFocus }
                 if dev.isExposureModeSupported(.continuousAutoExposure) { dev.exposureMode = .continuousAutoExposure }
                 if dev.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { dev.whiteBalanceMode = .continuousAutoWhiteBalance }
             }
@@ -171,9 +237,25 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         }
     }
 
-    /// `point` in device coordinates (0…1, from the preview layer).
+    /// Manual focus: 0 = closest, 1 = far.
+    func setFocus(_ p: Float) {
+        guard !isLocked else { return }
+        let p = min(max(p, 0), 1)
+        lensPosition = p
+        manualFocus = true
+        sessionQueue.async {
+            guard let dev = self.device, dev.isLockingFocusWithCustomLensPositionSupported,
+                  (try? dev.lockForConfiguration()) != nil else { return }
+            dev.setFocusModeLocked(lensPosition: p, completionHandler: nil)
+            dev.unlockForConfiguration()
+        }
+    }
+
+    /// `point` in device coordinates (0…1, from the preview layer; these follow the zoom, like the preview).
+    /// Back to autofocus at that point.
     func focus(at point: CGPoint) {
         guard !isLocked else { return }
+        manualFocus = false
         sessionQueue.async {
             guard let dev = self.device, (try? dev.lockForConfiguration()) != nil else { return }
             if dev.isFocusPointOfInterestSupported { dev.focusPointOfInterest = point; dev.focusMode = .autoFocus }
@@ -187,6 +269,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         let t = CMTimeGetSeconds(dev.exposureDuration)
         let shutter = t >= 0.5 ? String(format: "%.1f s", t) : "1/\(Int((1 / max(t, 1e-6)).rounded())) s"
         exposureText = "ISO \(Int(dev.iso.rounded())) · \(shutter)"
+        if !manualFocus { lensPosition = dev.lensPosition }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {

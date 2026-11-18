@@ -20,14 +20,36 @@ final class PreviewUIView: UIView {
 
 struct CameraPreview: UIViewRepresentable {
     let camera: CameraController
+    /// pinch to zoom (off during a run and once the project has photos, so all photos match)
+    var zoomEnabled = true
 
     final class Coordinator: NSObject {
         var version = -1
         var camera: CameraController?
+        var zoomEnabled = true
+        private var startZoom: CGFloat = 1
         weak var view: PreviewUIView?
         @objc func tap(_ g: UITapGestureRecognizer) {
-            guard let view, let camera else { return }
-            camera.focus(at: view.previewLayer.captureDevicePointConverted(fromLayerPoint: g.location(in: view)))
+            guard let view, let camera, !camera.isLocked else { return }
+            let p = g.location(in: view)
+            camera.focus(at: view.previewLayer.captureDevicePointConverted(fromLayerPoint: p))
+            // show where it focuses
+            let box = UIView(frame: CGRect(x: p.x - 36, y: p.y - 36, width: 72, height: 72))
+            box.layer.borderColor = UIColor.systemYellow.cgColor
+            box.layer.borderWidth = 1.5
+            box.isUserInteractionEnabled = false
+            box.transform = CGAffineTransform(scaleX: 1.4, y: 1.4)
+            view.addSubview(box)
+            UIView.animate(withDuration: 0.2) { box.transform = .identity }
+            UIView.animate(withDuration: 0.4, delay: 1.0, options: []) { box.alpha = 0 } completion: { _ in box.removeFromSuperview() }
+        }
+        @objc func pinch(_ g: UIPinchGestureRecognizer) {
+            guard zoomEnabled, let camera else { return }
+            switch g.state {
+            case .began: startZoom = camera.zoom
+            case .changed: camera.setZoom(startZoom * g.scale)
+            default: break
+            }
         }
     }
 
@@ -41,10 +63,12 @@ struct CameraPreview: UIViewRepresentable {
         context.coordinator.view = v
         context.coordinator.camera = camera
         v.addGestureRecognizer(UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tap(_:))))
+        v.addGestureRecognizer(UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinch(_:))))
         return v
     }
 
     func updateUIView(_ v: PreviewUIView, context: Context) {
+        context.coordinator.zoomEnabled = zoomEnabled
         if context.coordinator.version != camera.deviceVersion {
             context.coordinator.version = camera.deviceVersion
             v.attach(camera)
@@ -71,6 +95,8 @@ struct CaptureView: View {
     @State private var domeMessage: String?
     @State private var showDomeSettings = false
     @State private var onScreen = false
+    /// the slider sets brightness or focus
+    @State private var focusSlider = false
 
     private let intervals: [(String, Double)] = [("Manual", 0), ("1 s", 1), ("2 s", 2), ("3 s", 3), ("5 s", 5)]
     /// interval picker tag for the light dome
@@ -81,7 +107,7 @@ struct CaptureView: View {
             Color.black.ignoresSafeArea()
             switch camera.status {
             case .running, .idle:
-                CameraPreview(camera: camera).ignoresSafeArea()
+                CameraPreview(camera: camera, zoomEnabled: !running && project.meta.frames.isEmpty).ignoresSafeArea()
             case .denied:
                 message("Camera access is off", "Allow camera access for relightCam in Settings → Privacy & Security → Camera.")
             case .failed(let s):
@@ -118,14 +144,39 @@ struct CaptureView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             camera.framesDir = project.framesDir
             camera.nextIndex = project.nextFrameIndex()
-            camera.onSaved = { name, w, h in project.appendFrame(name, width: w, height: h) }
+            camera.onSaved = { name, w, h in
+                project.appendFrame(name, width: w, height: h)
+                // light dome: the photo gets its LED's direction from the dome's light file
+                if project.meta.leds?[name] != nil, let l = dome.lights, dome.useLights {
+                    project.applyDomeLights(source: l.name) { dome.direction(forLED: $0) }
+                }
+            }
             camera.start()
             hudTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in camera.refreshExposureText() }
             onScreen = true
             if domeMode { dome.refresh(); dome.showPreview() }
             #if DEBUG
+            // test hook -zoom a,b,c: set these zooms one after another, 2 s apart
+            let args = ProcessInfo.processInfo.arguments
+            // (a trailing "s" = lens preset, e.g. 1s), and -focus p: set the lens position after that
+            if let i = args.firstIndex(of: "-zoom"), i + 1 < args.count {
+                for (k, item) in args[i + 1].split(separator: ",").enumerated() {
+                    let snap = item.hasSuffix("s")
+                    guard let z = Double(snap ? item.dropLast() : item) else { continue }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2 + 2 * Double(k)) { camera.setZoom(z, snap: snap) }
+                }
+            }
+            if let i = args.firstIndex(of: "-focus"), i + 1 < args.count, let f = Float(args[i + 1]) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                    camera.setFocus(f)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                        let d = camera.device
+                        print("[focus] set \(f): lens position \(d?.lensPosition ?? -1), mode \(d?.focusMode.rawValue ?? -1), zoom \(camera.zoom)")
+                    }
+                }
+            }
             // test hook -dome-autostart: start a dome run after the camera has settled
-            if ProcessInfo.processInfo.arguments.contains("-dome-autostart") {
+            if args.contains("-dome-autostart") {
                 domeMode = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 4) { if !running { startDome() } }
             }
@@ -158,13 +209,15 @@ struct CaptureView: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 6).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
             Spacer()
-            if camera.availableLenses.count > 1 {
+            if !camera.availableLenses.isEmpty {
                 Menu {
-                    ForEach(camera.availableLenses) { l in
-                        Button(l.rawValue) { camera.select(l) }
+                    ForEach(camera.availableLenses.sorted { camera.base($0) < camera.base($1) }) { l in
+                        Button(CameraController.zoomLabel(camera.base(l))) { camera.setZoom(camera.base(l), snap: true) }
                     }
                 } label: {
-                    Text(camera.lens.rawValue).bold().frame(minWidth: 44).padding(.vertical, 8).background(.ultraThinMaterial, in: Capsule())
+                    Text(CameraController.zoomLabel(camera.zoom)).bold().monospacedDigit()
+                        .frame(minWidth: 44).padding(.vertical, 8).padding(.horizontal, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
                 .disabled(running || !project.meta.frames.isEmpty)
             } else {
@@ -176,13 +229,14 @@ struct CaptureView: View {
         .padding(.top, 8)
     }
 
-    private let hintText = "Tripod · dark room · glossy black sphere in view.\nTap to focus, lock exposure, then move a hand-held light around the object between shots: low and high, all directions, same distance."
+    private let hintText = "Tripod · dark room · glossy black sphere in view.\nPinch to zoom, tap to focus (or set focus with the ◎ slider), lock, then move a hand-held light around the object between shots: low and high, all directions, same distance."
 
     private var domeHint: String {
         guard dome.hasOutput else { return "Light dome: no MIDI device yet. Tap the dome row below to pair the dome's Arduino." }
-        return dome.previewOn
-            ? "Light dome: frame the object and the sphere with LED \(dome.previewLED + 1) on, tap to focus, then Lock. The red button lights each LED in turn and takes one photo per LED."
-            : "Light dome: frame the object and the sphere, tap to focus, then Lock. The red button lights each LED in turn and takes one photo per LED."
+        let what = dome.useLights && dome.lights != nil
+            ? "the object (no sphere needed: the light file gives the directions)" : "the object and the sphere"
+        let lit = dome.previewOn ? " with LED \(dome.previewLED + 1) on" : ""
+        return "Light dome: frame \(what)\(lit). Pinch to zoom, tap or use the ◎ slider to focus, then Lock. The red button lights each LED in turn and takes one photo per LED."
     }
 
     private func note(_ text: String) -> some View {
@@ -211,10 +265,22 @@ struct CaptureView: View {
         VStack(spacing: 12) {
             if domeMode { domeRow }
             HStack(spacing: 12) {
-                Image(systemName: "sun.max").foregroundStyle(.secondary)
-                Slider(value: Binding(get: { Double(camera.exposureBias) }, set: { camera.setBias(Float($0)) }), in: -3...2)
-                    .disabled(camera.isLocked)
-                Text(String(format: "%+.1f", camera.exposureBias)).font(.caption.monospacedDigit()).frame(width: 34)
+                Button { focusSlider.toggle() } label: {
+                    Image(systemName: focusSlider ? "scope" : "sun.max")
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.15), in: Circle())
+                }
+                .accessibilityLabel(focusSlider ? "Slider sets focus; switch to brightness" : "Slider sets brightness; switch to focus")
+                if focusSlider {
+                    Slider(value: Binding(get: { Double(camera.lensPosition) }, set: { camera.setFocus(Float($0)) }), in: 0...1)
+                        .disabled(camera.isLocked)
+                    Text(camera.manualFocus ? String(format: "%.2f", camera.lensPosition) : "AF")
+                        .font(.caption.monospacedDigit()).frame(width: 34)
+                } else {
+                    Slider(value: Binding(get: { Double(camera.exposureBias) }, set: { camera.setBias(Float($0)) }), in: -3...2)
+                        .disabled(camera.isLocked)
+                    Text(String(format: "%+.1f", camera.exposureBias)).font(.caption.monospacedDigit()).frame(width: 34)
+                }
                 Button {
                     camera.setLocked(!camera.isLocked)
                 } label: {
@@ -341,9 +407,12 @@ struct CaptureView: View {
             running = false
             domeTask = nil
             switch reason {
-            case .finished: domeMessage = "\(count) LEDs done. Tap Done to mark the sphere, or the red button to capture again."
+            case .finished:
+                domeMessage = dome.useLights && dome.lights != nil
+                    ? "\(count) LEDs done, with light directions from \(dome.lights!.name). Tap Done to build the RTI, or the red button to capture again."
+                    : "\(count) LEDs done. Tap Done to mark the sphere, or the red button to capture again."
             case .cancelled: domeMessage = "Stopped. The photos taken so far are kept."
-            case .noFrames: domeMessage = "No camera frame arrived for LED \(current + 1), so the run was stopped (\(camera.lastFrameWait))."
+            case .noFrames: domeMessage = "The camera stopped delivering frames at LED \(current + 1), so the run was stopped. The photos taken so far are kept."
             }
             if onScreen && domeMode { dome.showPreview() }
         }

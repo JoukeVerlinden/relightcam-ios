@@ -28,6 +28,8 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
 
 1. **Capture.** Put the iPhone on a tripod with a shiny black sphere next to the object, and move a hand-held
    light between shots (focus, exposure and white balance locked; ≈12 MP frames on an interval timer).
+   Pinch to zoom from the ultra wide to several times the telephoto (one lens at a time, digital zoom in
+   between); tap to focus, or set the focus by hand with the slider's ◎ mode.
    Or use a [light dome](#light-dome), import photos, or try **Demo capture: silk textile**.
 2. **Light directions.** Place a circle on the sphere; the app finds the highlight in every photo.
    Enter the sphere's real diameter to give the RTI its real size.
@@ -44,8 +46,9 @@ A light dome replaces the hand-held light with fixed LEDs that switch on one at 
 faster and easier to repeat. relightCam drives the dome itself over **CoreMIDI**: choose **Dome** in the
 capture screen's interval menu, and the red button lights each LED in turn (MIDI note *n* = LED *n*) and
 takes one photo per LED, using the first camera frame exposed entirely under that LED. The dome's
-controller can be a Bluetooth MIDI or USB MIDI device. Light directions still come from the sphere, and
-each photo records its LED number.
+controller can be a Bluetooth MIDI or USB MIDI device. Each photo records its LED number and gets that
+LED's direction from the dome's light positions (a relight `.lp`; the current 24-LED dome is built in,
+another can be imported), so no sphere is needed.
 
 The protocol, the capture timing and an example sketch for an Arduino UNO R4 WiFi with an RGBW NeoPixel
 strip are in [docs/dome-midi.md](docs/dome-midi.md).
@@ -167,7 +170,7 @@ mkdir -p /tmp/ct && cp tools/cloth_test.swift /tmp/ct/main.swift
 swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ct/main.swift -o /tmp/ct/test && /tmp/ct/test
 
 mkdir -p /tmp/dt && cp tools/dome_test.swift /tmp/dt/main.swift
-swiftc RelightCam/Capture/DomeMIDI.swift /tmp/dt/main.swift -o /tmp/dt/test && /tmp/dt/test
+swiftc RelightCam/Capture/DomeMIDI.swift RelightCam/Core/LightPositions.swift /tmp/dt/main.swift -o /tmp/dt/test && /tmp/dt/test
 ```
 
 - `pipeline_test` renders a synthetic capture (embossed tablet plus a mirror sphere, 34 known lights),
@@ -176,7 +179,8 @@ swiftc RelightCam/Capture/DomeMIDI.swift /tmp/dt/main.swift -o /tmp/dt/test && /
 - `cloth_test` checks stretch, penetration, rest state and timing for every support, material and dress
   form, plus the Peirce calibration.
 - `dome_test` runs the light dome sequence (55 LEDs) against a virtual MIDI device: one photo per LED,
-  on → photo → off, never two LEDs lit, all off at the end and after a cancel.
+  on → photo → off, never two LEDs lit, all off at the end and after a cancel. It also reads the
+  default .lp (24 LEDs) and checks .lp parsing (line ends, comments, errors) and importing a custom file.
 
 Simulator test hooks (launch arguments):
 - Pipeline and screens: `-autorun` / `-autorun-textile` (demo → detect → HSH build), `-open-viewer`,
@@ -186,7 +190,10 @@ Simulator test hooks (launch arguments):
 - Cloth viewer: `-cloth-support board|dressForm|free`, `-cloth-form …`, `-cloth-material …`,
   `-cloth-grain deg`, `-cloth-light lamp|headlamp|orbit`, `-cloth-mode n`, `-cloth-open-settings`,
   `-cloth-open-mask`, `-cloth-ar`, `-cloth-export-test`, `-log-stats`.
-- Light dome (Debug builds): `-dome-virtual` adds a "Simulated dome" MIDI output that logs every message.
+- Light dome (Debug builds): `-dome-virtual` adds a "Simulated dome" MIDI output that logs every message;
+  `-dome-autostart` starts a Dome run in the capture screen after 4 s.
+- Zoom and focus (Debug builds, capture screen): `-zoom 2.5,0.9,1s` sets these zooms 2 s apart (a trailing
+  `s` = lens preset) and logs lens and zoom factor; `-focus 0.3` then sets the lens position by hand.
 - Outline and repeat editor (with `-cloth-open-mask`): `-mask-test-stroke` paints a timed 60-point stroke
   and removes the sphere (prints the timings); `-mask-test-region u0,v0,du,dv` sets the repeat rectangle.
 
