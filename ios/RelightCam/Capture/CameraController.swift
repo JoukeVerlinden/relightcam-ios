@@ -189,7 +189,7 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     /// longer lens waits until 3 % past its zoom, so a pinch near the boundary doesn't flip between lenses.
     /// `snap`: a lens preset, which goes straight to that lens (no 3 % margin).
     func setZoom(_ target: CGFloat, snap: Bool = false) {
-        guard !availableLenses.isEmpty else { return }
+        guard !availableLenses.isEmpty, target.isFinite, target > 0 else { return }
         let z = min(max(target, zoomRange.lowerBound), zoomRange.upperBound)
         zoom = z
         let sorted = availableLenses.sorted { base($0) < base($1) }
@@ -210,7 +210,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     }
 
     func setLocked(_ lock: Bool) {
-        captureRotation = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90
+        let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90
+        captureRotation = angle.isFinite ? angle : 90
         isLocked = lock
         sessionQueue.async {
             guard let dev = self.device, (try? dev.lockForConfiguration()) != nil else { return }
@@ -267,9 +268,14 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     func refreshExposureText() {
         guard let dev = device else { return }
         let t = CMTimeGetSeconds(dev.exposureDuration)
-        let shutter = t >= 0.5 ? String(format: "%.1f s", t) : "1/\(Int((1 / max(t, 1e-6)).rounded())) s"
-        exposureText = "ISO \(Int(dev.iso.rounded())) · \(shutter)"
-        if !manualFocus { lensPosition = dev.lensPosition }
+        let iso = Double(dev.iso)
+        // While the camera is being switched (e.g. zooming onto another lens) the exposure time can be
+        // invalid (NaN) or zero, and Int(NaN) would crash: keep the previous text until it's valid again.
+        if t.isFinite, t > 0, iso.isFinite {
+            let shutter = t >= 0.5 ? String(format: "%.1f s", t) : "1/\(Int((1 / t).rounded())) s"
+            exposureText = "ISO \(Int(iso.rounded())) · \(shutter)"
+        }
+        if !manualFocus, dev.lensPosition.isFinite { lensPosition = dev.lensPosition }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
@@ -363,6 +369,8 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     }
 
     static func orientation(for angle: CGFloat) -> CGImagePropertyOrientation {
+        // a phone pointing straight down (on a dome) can report no horizon angle: keep portrait then
+        guard angle.isFinite else { return .right }
         switch (Int(angle.rounded()) % 360 + 360) % 360 {
         case 90: return .right
         case 180: return .down
