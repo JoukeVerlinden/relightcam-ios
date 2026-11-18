@@ -46,30 +46,40 @@ frame records its LED, a later version can calibrate the dome once and reuse the
 
 ## Arduino UNO R4 WiFi + RGBW NeoPixels
 
-[`../dome/relightcam_dome/relightcam_dome.ino`](../dome/relightcam_dome/relightcam_dome.ino) is an
-example for an UNO R4 WiFi with a WS2812B-style RGBW strip (GRBW order) on pin 6. It uses Bluetooth MIDI
-through the board's ESP32-S3 module and lights only the white channel. It implements the BLE-MIDI
-service itself with ArduinoBLE, so it needs only two libraries: Adafruit NeoPixel and ArduinoBLE. The
-serial monitor (115200 baud) logs connections and every LED change. The usual NeoPixel advice applies: a separate 5 V supply for the strip, a common ground with
-the Arduino, a 300–500 Ω resistor in the data line and a large capacitor across the strip's supply.
+Two example sketches drive a WS2812B-style RGBW strip (GRBW order) on pin 6 and light only the white
+channel. Both log every LED change to a serial port at 115200 baud.
 
-The sketch compiles for the UNO R4 WiFi (core 1.6.0, ArduinoBLE 2.1: 32 % of flash); its packet parser
-was checked on a Mac with iOS-style packets (running status, several messages per packet, note 0). It
-hasn't run with a strip yet. The BLE-MIDI library (lathoub) was dropped: its ArduinoBLE backend doesn't
-compile without a workaround and reads the received bytes through a temporary string. If the board
-doesn't show up in the app's Bluetooth list, update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools ›
-Firmware Updater); the sketch blinks the L LED and says so on the serial monitor when Bluetooth fails.
+**Wired to the iPhone (USB MIDI), the main setup:**
+[`../dome/relightcam_dome_usb/relightcam_dome_usb.ino`](../dome/relightcam_dome_usb/relightcam_dome_usb.ino).
+The board appears in the app's dome row as soon as it is plugged in, with no pairing. An iPhone with
+Lightning needs the Lightning to USB 3 Camera Adapter.
 
-**Why not over the USB cable?** The UNO R4 can be a USB keyboard (HID) but not a USB MIDI device: its
-core (1.6.0) builds TinyUSB with the MIDI class switched off (`CFG_TUD_MIDI 0`), the USB descriptor is
-fixed in the core, and the MIDIUSB library doesn't support the R4. The cable can still power the board
-from the phone; the MIDI goes over Bluetooth.
+Out of the box the UNO R4 can be a USB keyboard but not a USB MIDI device: its core builds TinyUSB with
+the MIDI class off (`CFG_TUD_MIDI 0`) and a fixed USB descriptor, and the MIDIUSB library doesn't support
+the R4. [`../dome/r4-usb-midi/patch_core.py`](../dome/r4-usb-midi/patch_core.py) fixes that in the
+installed "Arduino UNO R4 Boards" package: it switches the MIDI class on for the UNO R4 WiFi and adds a
+MIDI interface to the USB descriptor, only for sketches that define `__USBInstallMIDI()`. Other sketches
+build exactly as before. It keeps `.orig` backups (`--revert` restores them, `--check` reports), works
+on macOS, Linux and Windows, and has to be re-run after updating the board package. Without it, the
+sketch stops compiling with a message that says so.
 
-**Boards that can be wired:**
-[`../dome/relightcam_dome_usb/relightcam_dome_usb.ino`](../dome/relightcam_dome_usb/relightcam_dome_usb.ino)
-does the same over USB MIDI with the MIDIUSB library, for a Leonardo, Micro or Pro Micro (ATmega32U4) or
-a SAMD board. It compiles for the Leonardo. The board appears in the app's dome row as soon as it is
-plugged in, with no pairing. An iPhone with Lightning needs the Lightning to USB 3 Camera Adapter.
+Checked on an UNO R4 WiFi (core 1.6.0) connected to a Mac: it enumerates as a class-compliant USB MIDI
+device "UNO R4 WiFi" in CoreMIDI, and a run through all 55 LEDs with the app's `DomeMIDI` code arrived
+complete and in order. The same sketch builds for a Leonardo with the MIDIUSB library (no patch needed on
+32U4 or SAMD boards).
+
+As with a USB keyboard sketch, the R4's USB-C port then belongs to the main chip. To upload again,
+double-press RESET (the L LED pulses) and pick the port that appears. On a Mac, allow the accessory if
+macOS asks.
+
+**Bluetooth MIDI (no cable):**
+[`../dome/relightcam_dome/relightcam_dome.ino`](../dome/relightcam_dome/relightcam_dome.ino) uses the
+R4 WiFi's ESP32-S3 module and implements the BLE-MIDI service itself with ArduinoBLE (libraries: Adafruit
+NeoPixel and ArduinoBLE). It runs on the R4 and advertises as "relightCam dome"; pair it from the dome
+row. It needs no core patch.
+
+The usual NeoPixel advice applies to both: a separate 5 V supply for the strip, a common ground with the
+Arduino, a 300–500 Ω resistor in the data line and a large capacitor across the strip's supply.
 
 ## Testing without a dome
 

@@ -14,8 +14,8 @@
 // pick "relightCam dome". The board's LED (L) is on while connected.
 // Serial monitor (115200 baud) logs connections and every LED change.
 //
-// The R4 can't be a USB MIDI device, so the MIDI goes over Bluetooth; the USB cable can stay in the
-// phone (or a charger) for power. Check the pixel order (NEO_GRBW) and the LED count against your strip.
+// For a cable to the iPhone instead, use relightcam_dome_usb (USB MIDI, needs ../r4-usb-midi/patch_core.py).
+// Check the pixel order (NEO_GRBW) and the LED count against your strip.
 
 #include <ArduinoBLE.h>
 #include <Adafruit_NeoPixel.h>
