@@ -231,7 +231,7 @@ struct ClothViewerView: View {
                         Picker("Form", selection: $model.settings.form) {
                             ForEach(FormPreset.allCases) { Text($0.title).tag($0) }
                         }
-                    } label: { chip(model.settings.form.title, "figure.stand.dress") }
+                    } label: { chip(model.settings.form.title, ClothSupport.dressSymbol) }
                 }
                 Spacer(minLength: 0)
                 if model.settings.support != .board {

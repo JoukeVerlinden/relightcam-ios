@@ -21,9 +21,14 @@ enum ClothSupport: String, Codable, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .board: return "rectangle"
-        case .dressForm: return "figure.stand.dress"
+        case .dressForm: return Self.dressSymbol
         case .free: return "hand.raised"
         }
+    }
+    /// figure.stand.dress arrived with iOS 18; iOS 17 shows a hanger instead of a blank space.
+    static var dressSymbol: String {
+        if #available(iOS 18, macOS 15, *) { return "figure.stand.dress" }
+        return "hanger"
     }
 }
 

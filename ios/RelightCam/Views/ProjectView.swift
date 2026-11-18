@@ -115,7 +115,7 @@ struct ProjectView: View {
             Section {
                 Button { showViewer = true } label: { Label("Open relightable image", systemImage: "light.max") }
                     .disabled(!project.hasRTI)
-                Button { showCloth = true } label: { Label("Open in 3D cloth viewer", systemImage: "figure.stand.dress") }
+                Button { showCloth = true } label: { Label("Open in 3D cloth viewer", systemImage: ClothSupport.dressSymbol) }
                     .disabled(!project.hasRTI)
                 if let r = project.meta.rti, !project.isImportedRTI {
                     Text(verbatim: "\(r.basis.rawValue.uppercased()) · \(r.width)×\(r.height) · \(r.lightsUsed) lights · built in \(String(format: "%.1f", r.seconds)) s")

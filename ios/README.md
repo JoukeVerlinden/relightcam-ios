@@ -230,6 +230,12 @@ Simulator test hooks (launch arguments):
 - Planes are written as JPEG quality 1.0, because ImageIO only disables chroma subsampling at maximum quality.
 - The cloth viewer's angled views and sheen are approximations, and the automatic cutout needs a real
   device (Vision foreground masks don't run in the simulator).
+- iOS 17 or later, so an iPhone XS/XR (2018), SE (2nd generation) or newer. The camera uses the lenses the
+  phone has; single-lens phones zoom digitally only. Building large HSH fits has not been tried on 3 GB phones;
+  lower the resolution if a build stops.
+- The dome needs a cable: USB-C iPhones (15 and later) take the Arduino on a plain USB-C cable; Lightning
+  iPhones need Apple's Lightning to USB 3 Camera Adapter with a charger in it (not yet tested).
+- On Macs and Apple Vision Pro the app only imports and views RTIs: there is no back camera to capture with.
 
 ## How to cite
 
