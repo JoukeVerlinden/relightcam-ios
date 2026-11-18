@@ -22,7 +22,7 @@ Data Not Collected, published on 7 November 2026. Privacy policy URL: https://gi
 ## Version 1.0
 
 - Release: manual, after App Review approval
-- Build: 2611042239
+- Version 1.1, build 2611181819 (1.0 / 2611042239 got a Guideline 2.1 information request; the version was renamed to 1.1 with the new build)
 
 ### Promotional text
 
@@ -42,7 +42,7 @@ WHO IT'S FOR
 It works for any flat object too, such as coins, clay tablets, paintings, leather or paper.
 
 HOW IT WORKS
-1. Capture. Put the iPhone on a tripod with a shiny black sphere next to the object. In a dark room, take 30 to 60 photos and move a hand-held light to a new spot between them. Focus, exposure and white balance are locked, and an interval timer takes the photos. A light dome works too: mount the iPhone above the object, keep the sphere in view, and let the dome switch its LEDs on one by one in step with the timer. Or import photos from Photos or Files, for example from a dome with its own camera. No setup at hand? Try the demo capture of a silk lampas.
+1. Capture. Put the iPhone on a tripod with a shiny black sphere next to the object. In a dark room, take 30 to 60 photos and move a hand-held light to a new spot between them. Focus, exposure and white balance are locked, and an interval timer takes the photos. With a light dome, relightCam does the lighting itself: connect the dome's Arduino to the iPhone with a USB cable, and the app lights each LED in turn and takes one photo per LED. The dome's light positions give every photo its direction, so the sphere is optional. Or import photos from Photos or Files. No setup at hand? Try the demo capture of a silk lampas.
 2. Process. The app finds the light direction in every photo from the highlight on the sphere, and fits a PTM or HSH relightable image, in the open format of the relight toolkit by the CNR-ISTI Visual Computing Lab. Enter the sphere's diameter to give the image its real size.
 3. View. In the 2D viewer, drag, or tilt the phone, to move the light, with RTI, specular, shaded and normal-map modes. The 3D cloth viewer drapes the captured textile on a board, on historical dress forms (1770s panniers, 1860s crinoline, 1880s bustle, 1920s) or as free-hanging cloth, with silk, linen, wool and tapestry presets, bias cut, pins and tiling of a pattern repeat. In live AR, the simulated cloth hangs in your room with real gravity, lit from the phone itself, and you can walk around it.
 4. Export. Share an RTI with a web viewer (OpenLIME), the photos with a .lp light file for RelightLab, or a 3D model (USDZ).
