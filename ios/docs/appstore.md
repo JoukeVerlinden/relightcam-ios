@@ -22,7 +22,14 @@ Data Not Collected, published on 7 November 2026. Privacy policy URL: https://gi
 ## Version 1.0
 
 - Release: manual, after App Review approval
-- Version 1.1, build 2611181819 (1.0 / 2611042239 got a Guideline 2.1 information request; the version was renamed to 1.1 with the new build)
+- Version 1.1, build 2611181819 (1.0 / 2611042239 got a Guideline 2.1 information request; the version was renamed to 1.1 with the new build). Approved and released on 18 November 2026 (174 countries; China mainland excluded).
+- Version 1.2, build 2611182322: the iOS 17 dress form icon fix, plus new screenshots and an App Preview made from the screen recording of the dome capture.
+
+### What's New in 1.2
+
+Fixed: on iOS 17 the dress form icon was missing in the 3D cloth viewer.
+
+Also in relightCam 1.1: the app can drive a light dome over USB (an Arduino as a USB MIDI device), give dome photos their light directions from a relight .lp file so no sphere is needed, zoom by pinching with manual focus, and import RTIs in relight's web format.
 
 ### Promotional text
 
@@ -72,6 +79,10 @@ RTI,PTM,HSH,relight,textile,fabric,heritage,museum,conservation,cloth,drape,AR,r
 ### Screenshots
 
 Made in the iPhone 17 Pro Max (6.9", 1320 × 2868) and iPad Pro 13" (2064 × 2752) simulators with the demo capture, plus one AR frame recorded on an iPhone 13 Pro.
+
+From 1.2 the iPhone set (10) leads with seven frames from the screen recording of a real dome capture (embroidered textile, 24-LED UAntwerpen dome): dress form, 2D viewer under raking light, Dome capture at "LED 14 of 24", the Light dome settings, the project with "24 of 24 usable", the specular view and free cloth. These are followed by the earlier AR, sphere and pattern-editor shots. The recording's status bar (16:28, red recording pill) was replaced with the 09:41 bar of the earlier set, and the green camera dot removed. Frames are 1206 × 2622 (6.3"), scaled to 1320 × 2868 for the 6.9" slot. Drop 6.9" files on the large-display box: the 6.3" box rejects them.
+
+App Preview (1.2): 28 s from the 2D viewer part of the recording (light moving in RTI mode, then specular), 886 × 1920, 30 fps, H.264 High 4.0 at 11 Mbit/s, silent stereo AAC 256 kbit/s. App Previews must be screen recordings of the app, so the hardware footage can't be used; GIFs aren't accepted.
 
 Upload screenshots to the Asset Library, then pick them per size in the version's Media Manager (Browse Assets; the click order sets the order). The 6.9" set sits in the "iPhone with Dynamic Island, large display" slot, and the required 6.3" slot reuses it automatically ("Using Existing Assets"). The iPad set sits in the required iPad 13" slot.
 
