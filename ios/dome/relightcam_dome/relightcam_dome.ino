@@ -7,73 +7,129 @@
 //   Note Off -> LED n off
 //   Control Change 123 (All Notes Off) or 120 (All Sound Off) -> all LEDs off
 //
-// Libraries (Arduino IDE > Library Manager):
-//   Adafruit NeoPixel, ArduinoBLE, MIDI Library (FortySevenEffects), BLE-MIDI (lathoub)
+// Libraries (Arduino IDE > Library Manager): Adafruit NeoPixel, ArduinoBLE.
+// The sketch implements the BLE-MIDI service itself (Bluetooth SIG / MMA "MIDI over Bluetooth LE"),
+// so no MIDI library is needed.
 // In relightCam: capture screen > interval menu > Dome > dome row > Connect a Bluetooth MIDI device,
 // pick "relightCam dome". The board's LED (L) is on while connected.
+// Serial monitor (115200 baud) logs connections and every LED change.
 //
-// Compiles for the UNO R4 WiFi (core 1.6.0, BLE-MIDI 2.2, ArduinoBLE 2.1); not yet run with a strip.
-// Check the pixel order (NEO_GRBW) and the LED count against your strip. The USB cable can stay in the
-// phone for power: the R4 can't be a USB MIDI device, so the MIDI goes over Bluetooth.
+// The R4 can't be a USB MIDI device, so the MIDI goes over Bluetooth; the USB cable can stay in the
+// phone (or a charger) for power. Check the pixel order (NEO_GRBW) and the LED count against your strip.
 
+#include <ArduinoBLE.h>
 #include <Adafruit_NeoPixel.h>
-#include <BLEMIDI_Transport.h>
-// BLE-MIDI 2.2's ArduinoBLE backend uses these two names outside the library's namespace
-using BLEMIDI_NAMESPACE::SERVICE_UUID;
-using BLEMIDI_NAMESPACE::CHARACTERISTIC_UUID;
-#include <hardware/BLEMIDI_ArduinoBLE.h>
 
 const int LED_PIN = 6;
 const int NUM_LEDS = 55;
+const char *DOME_NAME = "relightCam dome";
+const bool LOG = true;
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
-BLEMIDI_CREATE_INSTANCE("relightCam dome", MIDI)
+
+// BLE-MIDI service and its single characteristic (fixed UUIDs from the specification)
+BLEService midiService("03B80E5A-EDE8-4B33-A751-6CE34EC4C700");
+BLECharacteristic midiChar("7772E5DB-3868-4112-A1A9-F2669D106BF3",
+                           BLERead | BLEWrite | BLEWriteWithoutResponse | BLENotify, 128);
 
 void allOff() {
   strip.clear();
   strip.show();
+  if (LOG) Serial.println("all off");
 }
 
-void onNoteOff(byte channel, byte note, byte velocity) {
-  if (note >= NUM_LEDS) return;
-  strip.setPixelColor(note, 0);
-  strip.show();
-}
-
-void onNoteOn(byte channel, byte note, byte velocity) {
-  if (note >= NUM_LEDS) return;
-  if (velocity == 0) { onNoteOff(channel, note, velocity); return; }
+void ledOn(byte n, byte velocity) {
+  if (n >= NUM_LEDS) return;
   // one LED at a time: a photo must be lit by a single, known LED
   strip.clear();
-  strip.setPixelColor(note, strip.Color(0, 0, 0, map(velocity, 1, 127, 2, 255)));  // white channel only
+  strip.setPixelColor(n, strip.Color(0, 0, 0, map(velocity, 1, 127, 2, 255)));  // white channel only
+  strip.show();
+  if (LOG) { Serial.print("on "); Serial.print(n + 1); Serial.print(" ("); Serial.print(velocity); Serial.println(")"); }
+}
+
+void ledOff(byte n) {
+  if (n >= NUM_LEDS) return;
+  strip.setPixelColor(n, 0);
   strip.show();
 }
 
-void onControlChange(byte channel, byte number, byte value) {
-  if (number == 123 || number == 120) allOff();
+void handleMidi(byte status, byte d1, byte d2) {
+  byte type = status & 0xF0;
+  if (type == 0x90 && d2 > 0) ledOn(d1, d2);
+  else if (type == 0x80 || type == 0x90) ledOff(d1);
+  else if (type == 0xB0 && (d1 == 123 || d1 == 120)) allOff();
 }
 
-void onConnected() {
+// A BLE-MIDI packet: header byte, then [timestamp byte][status byte][data...] messages. Status bytes are
+// always preceded by a timestamp byte; running status (data without a new status) is allowed.
+void parseBleMidi(const uint8_t *p, int n) {
+  if (n < 3 || !(p[0] & 0x80)) return;
+  byte status = 0, data[2] = {0, 0};
+  int have = 0, need = 0;
+  for (int i = 1; i < n; i++) {
+    byte b = p[i];
+    if (b & 0x80) {                       // timestamp byte
+      have = 0;
+      if (i + 1 < n && (p[i + 1] & 0x80)) {
+        b = p[++i];                       // status byte
+        if (b >= 0xF0) { status = 0; continue; }  // system messages (SysEx etc.) are not used
+        status = b;
+        need = ((b & 0xF0) == 0xC0 || (b & 0xF0) == 0xD0) ? 1 : 2;
+      }
+      continue;
+    }
+    if (!status) continue;
+    data[have++] = b;
+    if (have == need) {
+      handleMidi(status, data[0], need > 1 ? data[1] : 0);
+      have = 0;
+    }
+  }
+}
+
+void onWritten(BLEDevice central, BLECharacteristic c) {
+  parseBleMidi(c.value(), c.valueLength());
+}
+
+void onConnected(BLEDevice central) {
   digitalWrite(LED_BUILTIN, HIGH);
+  if (LOG) { Serial.print("connected: "); Serial.println(central.address()); }
 }
 
-void onDisconnected() {
+void onDisconnected(BLEDevice central) {
   digitalWrite(LED_BUILTIN, LOW);
   allOff();  // never leave an LED burning when the phone goes away
+  if (LOG) Serial.println("disconnected");
 }
 
 void setup() {
+  Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   strip.begin();
   allOff();
-  MIDI.begin(MIDI_CHANNEL_OMNI);  // also starts Bluetooth advertising
-  BLEMIDI.setHandleConnected(onConnected);
-  BLEMIDI.setHandleDisconnected(onDisconnected);
-  MIDI.setHandleNoteOn(onNoteOn);
-  MIDI.setHandleNoteOff(onNoteOff);
-  MIDI.setHandleControlChange(onControlChange);
+
+  if (!BLE.begin()) {
+    // usually old ESP32 firmware: Arduino IDE > Tools > Firmware Updater
+    while (true) {
+      Serial.println("Bluetooth didn't start: update the UNO R4 WiFi's ESP32 firmware");
+      digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+      delay(250);
+    }
+  }
+  BLE.setLocalName(DOME_NAME);
+  BLE.setDeviceName(DOME_NAME);
+  BLE.setAdvertisedService(midiService);
+  midiService.addCharacteristic(midiChar);
+  BLE.addService(midiService);
+  BLE.setEventHandler(BLEConnected, onConnected);
+  BLE.setEventHandler(BLEDisconnected, onDisconnected);
+  midiChar.setEventHandler(BLEWritten, onWritten);
+  BLE.advertise();
+  Serial.print("advertising as \"");
+  Serial.print(DOME_NAME);
+  Serial.println("\" with the Bluetooth MIDI service");
 }
 
 void loop() {
-  MIDI.read();
+  BLE.poll();
 }

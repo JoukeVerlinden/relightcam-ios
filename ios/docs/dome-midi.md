@@ -48,15 +48,17 @@ frame records its LED, a later version can calibrate the dome once and reuse the
 
 [`../dome/relightcam_dome/relightcam_dome.ino`](../dome/relightcam_dome/relightcam_dome.ino) is an
 example for an UNO R4 WiFi with a WS2812B-style RGBW strip (GRBW order) on pin 6. It uses Bluetooth MIDI
-through the board's ESP32-S3 module and lights only the white channel. Install these libraries with
-the Library Manager: Adafruit NeoPixel, ArduinoBLE, MIDI Library (FortySevenEffects) and BLE-MIDI
-(lathoub). The usual NeoPixel advice applies: a separate 5 V supply for the strip, a common ground with
+through the board's ESP32-S3 module and lights only the white channel. It implements the BLE-MIDI
+service itself with ArduinoBLE, so it needs only two libraries: Adafruit NeoPixel and ArduinoBLE. The
+serial monitor (115200 baud) logs connections and every LED change. The usual NeoPixel advice applies: a separate 5 V supply for the strip, a common ground with
 the Arduino, a 300–500 Ω resistor in the data line and a large capacitor across the strip's supply.
 
-The sketch compiles for the UNO R4 WiFi (core 1.6.0, BLE-MIDI 2.2, ArduinoBLE 2.1: 33 % of flash) but
-hasn't run with a strip yet. BLE-MIDI 2.2's ArduinoBLE backend needs a small workaround, which the sketch
-contains (two `using` lines before the backend include). If the board doesn't show up in the app's
-Bluetooth list, update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools › Firmware Updater).
+The sketch compiles for the UNO R4 WiFi (core 1.6.0, ArduinoBLE 2.1: 32 % of flash); its packet parser
+was checked on a Mac with iOS-style packets (running status, several messages per packet, note 0). It
+hasn't run with a strip yet. The BLE-MIDI library (lathoub) was dropped: its ArduinoBLE backend doesn't
+compile without a workaround and reads the received bytes through a temporary string. If the board
+doesn't show up in the app's Bluetooth list, update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools ›
+Firmware Updater); the sketch blinks the L LED and says so on the serial monitor when Bluetooth fails.
 
 **Why not over the USB cable?** The UNO R4 can be a USB keyboard (HID) but not a USB MIDI device: its
 core (1.6.0) builds TinyUSB with the MIDI class switched off (`CFG_TUD_MIDI 0`), the USB descriptor is
