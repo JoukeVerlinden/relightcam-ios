@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showPhotoPicker = false
     @State private var showFileImporter = false
+    @State private var showRTIImporter = false
     @State private var showHelp = false
     @State private var busy: String?
     @State private var errorText: String?
@@ -36,6 +37,10 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("relightCam")
+            // a second file importer must sit on another view than the photo importer
+            .fileImporter(isPresented: $showRTIImporter, allowedContentTypes: [.zip, .folder]) { result in
+                if case .success(let url) = result { Task { await importRTI(url) } }
+            }
             .navigationDestination(for: Project.self) { ProjectView(project: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -45,6 +50,7 @@ struct ContentView: View {
                     Menu {
                         Button { showPhotoPicker = true } label: { Label("Import from Photos", systemImage: "photo.on.rectangle") }
                         Button { showFileImporter = true } label: { Label("Import from Files", systemImage: "folder") }
+                        Button { showRTIImporter = true } label: { Label("Import an RTI (relight .zip or folder)", systemImage: "cube.transparent") }
                         Button { Task { await makeDemo(.tablet) } } label: { Label("Demo capture: embossed tablet", systemImage: "wand.and.stars") }
                         Button { Task { await makeDemo(.textile) } } label: { Label("Demo capture: silk textile", systemImage: "wand.and.stars.inverse") }
                     } label: { Image(systemName: "square.and.arrow.down") }
@@ -76,6 +82,10 @@ struct ContentView: View {
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-autorun-textile") { await autorun(.textile) } else if args.contains("-autorun") { await autorun(.tablet) }
             if args.contains("-open-help") { showHelp = true }
+            #if DEBUG
+            // test hook -import-rti <path>: import an RTI zip or folder as the menu does
+            if let i = args.firstIndex(of: "-import-rti"), i + 1 < args.count { await importRTI(URL(fileURLWithPath: args[i + 1])) }
+            #endif
         }
         .alert("Something went wrong", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
             Button("OK", role: .cancel) {}
@@ -130,6 +140,34 @@ struct ContentView: View {
         }.value
         busy = nil
         finishImport(p, names: names)
+    }
+
+    /// An RTI in relight's web format (relightCam's own "Share RTI" zip, or relight-cli PTM/HSH output).
+    private func importRTI(_ url: URL) async {
+        var name = url.deletingPathExtension().lastPathComponent
+        if name.hasSuffix(" RTI") { name = String(name.dropLast(4)) }
+        guard let p = try? store.create(name: name, source: "rti-import") else { return }
+        busy = "Importing RTI…"
+        let dest = p.rtiDir
+        let result: Result<RelightInfo, Error> = await Task.detached(priority: .userInitiated) {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            return Result { try RTIImport.importRTI(from: url, to: dest) }
+        }.value
+        busy = nil
+        switch result {
+        case .success(let info):
+            p.meta.rti = RTIMeta(basis: info.basis ?? .ptm, width: info.width, height: info.height,
+                                 lightsUsed: (info.lights?.count ?? 0) / 3, date: Date(), seconds: 0)
+            p.meta.frameWidth = info.width
+            p.meta.frameHeight = info.height
+            p.meta.pixelSizeMM = info.pixelSizeInMM
+            p.save()
+            path = [p]
+        case .failure(let e):
+            store.delete(p)
+            errorText = e.localizedDescription
+        }
     }
 
     /// Test hook (launch argument -autorun): demo capture → detect → HSH build → project screen.
@@ -187,7 +225,7 @@ struct ProjectRow: View {
     let project: Project
     var body: some View {
         HStack(spacing: 12) {
-            FrameThumb(url: project.frameURLs.first).frame(width: 64, height: 48)
+            FrameThumb(url: project.thumbnailURL).frame(width: 64, height: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.meta.name).font(.headline).lineLimit(1)
                 Text(status).font(.caption).foregroundStyle(.secondary)
@@ -195,6 +233,9 @@ struct ProjectRow: View {
         }
     }
     private var status: String {
+        if project.isImportedRTI, let r = project.meta.rti {
+            return "Imported RTI · \(r.basis.rawValue.uppercased()) · \(r.width)×\(r.height)"
+        }
         var parts = ["\(project.meta.frames.count) photos"]
         if project.lightsAreCurrent { parts.append("\(project.usableIndices.count) lights") }
         if let r = project.meta.rti { parts.append("\(r.basis.rawValue.uppercased()) ready") }
@@ -227,6 +268,7 @@ struct HelpView: View {
                 Section("Process") {
                     Text("Mark the sphere, detect the lights, build the RTI, then explore it: drag to move the light, or switch on Tilt and tilt the phone.")
                     Text("For the highest quality, export the photos with the .lp file and process them in RelightLab on a desktop.")
+                    Text("RTIs made elsewhere can be imported (import menu › Import an RTI): relight's web format as a zip or folder, PTM or HSH, such as relightCam's own exports.")
                 }
                 Section("About") {
                     VStack(alignment: .leading, spacing: 10) {

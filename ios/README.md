@@ -39,6 +39,11 @@ orbiting raking light) and, at the end, live AR recorded on an iPhone 13 Pro.
    - **Open in 3D cloth viewer**: the same RTI draped on a simulated cloth (below).
 5. **Export.** An RTI zip with relight's OpenLIME web viewer; photos plus a `.lp` file for RelightLab; or a
    `.usdz` of the current drape.
+6. **Import an RTI.** Import menu › *Import an RTI*: a zip or folder in relight's web format (`info.json`
+   + `plane_N` images), such as relightCam's own RTI export or relight-cli with `-b ptm -p 18` or
+   `-b hsh -p 27` (rgb). It becomes a project without photos that opens in both viewers and can be
+   shared again; the cutout (`mask.png`) and the real size (`pixelSizeInMM`) come along. RBF and other
+   relight types aren't supported yet.
 
 ## Light dome
 
@@ -169,6 +174,9 @@ swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/rc/main.swift -o
 mkdir -p /tmp/ct && cp tools/cloth_test.swift /tmp/ct/main.swift
 swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ct/main.swift -o /tmp/ct/test && /tmp/ct/test
 
+mkdir -p /tmp/ri && cp tools/rti_import_test.swift /tmp/ri/main.swift
+swiftc -O RelightCam/Core/*.swift RelightCam/Cloth/*.swift /tmp/ri/main.swift -o /tmp/ri/test && /tmp/ri/test /tmp/ri/out
+
 mkdir -p /tmp/dt && cp tools/dome_test.swift /tmp/dt/main.swift
 swiftc RelightCam/Capture/DomeMIDI.swift RelightCam/Core/LightPositions.swift /tmp/dt/main.swift -o /tmp/dt/test && /tmp/dt/test
 ```
@@ -178,11 +186,15 @@ swiftc RelightCam/Capture/DomeMIDI.swift RelightCam/Core/LightPositions.swift /t
   The exported folders were also checked in relight's OpenLIME viewer.
 - `cloth_test` checks stretch, penetration, rest state and timing for every support, material and dress
   form, plus the Peirce calibration.
+- `rti_import_test` exports a PTM and an HSH RTI with the app's Share RTI code and imports them again
+  (every file byte for byte), plus zips from ditto/Finder and Info-ZIP, a folder, and refused files (RBF,
+  no RTI, a missing plane, not a zip, a path leaving the folder).
 - `dome_test` runs the light dome sequence (55 LEDs) against a virtual MIDI device: one photo per LED,
   on → photo → off, never two LEDs lit, all off at the end and after a cancel. It also reads the
   default .lp (24 LEDs) and checks .lp parsing (line ends, comments, errors) and importing a custom file.
 
 Simulator test hooks (launch arguments):
+- RTI import (Debug builds): `-import-rti <zip or folder>` imports it as the menu does.
 - Pipeline and screens: `-autorun` / `-autorun-textile` (demo → detect → HSH build), `-open-viewer`,
   `-open-sphere`, `-open-capture`, `-open-cloth`, `-scroll-view`.
 - How it works and credits: `-open-help`, `-scroll-help`, `-open-credits`, `-open-license`.

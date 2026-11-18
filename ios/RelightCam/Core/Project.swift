@@ -30,6 +30,8 @@ struct ProjectMeta: Codable {
     var leds: [String: Int]?
     /// name of the dome light file the light directions came from (nil when they came from the sphere)
     var lightsFrom: String?
+    /// imported RTI: real size, mm per pixel (from its info.json)
+    var pixelSizeMM: Double?
 }
 
 /// One capture session = one folder in Documents/Projects (visible in the Files app).
@@ -61,6 +63,16 @@ final class Project: Identifiable, Hashable {
         guard let hs = meta.highlights, hs.count == meta.frames.count else { return [] }
         let ex = Set(meta.excluded)
         return hs.indices.filter { hs[$0].valid && !ex.contains($0) }
+    }
+
+    /// an RTI imported from a relight web-format zip or folder (no photos)
+    var isImportedRTI: Bool { meta.source == "rti-import" }
+
+    /// first photo, or for an imported RTI its first plane (the constant term, which looks like the plain image)
+    var thumbnailURL: URL? {
+        if let f = frameURLs.first { return f }
+        return ["jpg", "png"].map { rtiDir.appendingPathComponent("plane_0.\($0)") }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     var lightsAreCurrent: Bool {

@@ -33,66 +33,83 @@ struct ProjectView: View {
     var body: some View {
         ScrollViewReader { proxy in
         List {
-            Section {
-                HStack(spacing: 14) {
-                    FrameThumb(url: project.frameURLs.first).frame(width: 84, height: 64)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\(project.meta.frames.count) photos").font(.headline)
-                        if project.meta.frameWidth > 0 {
-                            Text(verbatim: "\(project.meta.frameWidth)×\(project.meta.frameHeight)").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Text(project.meta.created.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                NavigationLink { FramesView(project: project) } label: { Label("Photos", systemImage: "photo.stack") }
-                    .disabled(project.meta.frames.isEmpty)
-                Button { showCapture = true } label: { Label("Add photos with the camera", systemImage: "camera") }
-            }
-
-            Section {
-                if project.lightsAreCurrent {
+            if project.isImportedRTI {
+                Section {
                     HStack(spacing: 14) {
-                        LightPlot(project: project).frame(width: 96, height: 96)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(project.usableIndices.count) of \(project.meta.frames.count) usable").font(.headline)
-                            if let from = project.meta.lightsFrom {
-                                Text("From the light dome (\(from)): each dot is one LED seen from above. No sphere needed.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            } else {
-                                Text("Each dot is one light position seen from above. Good coverage = dots all around, at several heights.")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        FrameThumb(url: project.thumbnailURL).frame(width: 84, height: 64)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Imported RTI").font(.headline)
+                            if let r = project.meta.rti {
+                                Text(verbatim: "\(r.basis.rawValue.uppercased()) · \(r.width)×\(r.height)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text(project.meta.created.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    Text("A relight web-format RTI without its photos: it can be viewed, draped and shared, but not rebuilt.")
+                }
+            } else {
+                Section {
+                    HStack(spacing: 14) {
+                        FrameThumb(url: project.frameURLs.first).frame(width: 84, height: 64)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(project.meta.frames.count) photos").font(.headline)
+                            if project.meta.frameWidth > 0 {
+                                Text(verbatim: "\(project.meta.frameWidth)×\(project.meta.frameHeight)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text(project.meta.created.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    NavigationLink { FramesView(project: project) } label: { Label("Photos", systemImage: "photo.stack") }
+                        .disabled(project.meta.frames.isEmpty)
+                    Button { showCapture = true } label: { Label("Add photos with the camera", systemImage: "camera") }
+                }
+
+                Section {
+                    if project.lightsAreCurrent {
+                        HStack(spacing: 14) {
+                            LightPlot(project: project).frame(width: 96, height: 96)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(project.usableIndices.count) of \(project.meta.frames.count) usable").font(.headline)
+                                if let from = project.meta.lightsFrom {
+                                    Text("From the light dome (\(from)): each dot is one LED seen from above. No sphere needed.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    Text("Each dot is one light position seen from above. Good coverage = dots all around, at several heights.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
-                }
-                Button { showSphere = true } label: {
-                    Label(project.meta.lightsFrom != nil ? "Use the sphere instead"
-                          : project.lightsAreCurrent ? "Adjust sphere & re-detect" : "Mark sphere & detect lights",
-                          systemImage: "circle.dashed")
-                }
-                .disabled(project.meta.frames.isEmpty)
-            } header: { Text("1 · Light directions") }
-
-            Section {
-                Picker("Basis", selection: $basis) {
-                    ForEach(RTIBasis.allCases) { Text($0.title).tag($0) }
-                }
-                Picker("Resolution", selection: $maxSide) {
-                    Text("1024 px").tag(1024)
-                    Text("1536 px").tag(1536)
-                    Text("2048 px").tag(2048)
-                }
-                if building {
-                    VStack(alignment: .leading) {
-                        ProgressView(value: buildProgress)
-                        Text(buildStatus).font(.caption).foregroundStyle(.secondary)
+                    Button { showSphere = true } label: {
+                        Label(project.meta.lightsFrom != nil ? "Use the sphere instead"
+                              : project.lightsAreCurrent ? "Adjust sphere & re-detect" : "Mark sphere & detect lights",
+                              systemImage: "circle.dashed")
                     }
-                } else {
-                    Button { Task { await build() } } label: { Label(project.hasRTI ? "Rebuild RTI" : "Build RTI", systemImage: "cube.transparent") }
-                        .disabled(project.usableIndices.count < basis.nCoeffs + 2)
+                    .disabled(project.meta.frames.isEmpty)
+                } header: { Text("1 · Light directions") }
+
+                Section {
+                    Picker("Basis", selection: $basis) {
+                        ForEach(RTIBasis.allCases) { Text($0.title).tag($0) }
+                    }
+                    Picker("Resolution", selection: $maxSide) {
+                        Text("1024 px").tag(1024)
+                        Text("1536 px").tag(1536)
+                        Text("2048 px").tag(2048)
+                    }
+                    if building {
+                        VStack(alignment: .leading) {
+                            ProgressView(value: buildProgress)
+                            Text(buildStatus).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Button { Task { await build() } } label: { Label(project.hasRTI ? "Rebuild RTI" : "Build RTI", systemImage: "cube.transparent") }
+                            .disabled(project.usableIndices.count < basis.nCoeffs + 2)
+                    }
+                } header: { Text("2 · Build RTI") } footer: {
+                    Text("HSH handles shinier materials; PTM is the classic format. Both use relight's math and open in relight's OpenLIME viewer.")
                 }
-            } header: { Text("2 · Build RTI") } footer: {
-                Text("HSH handles shinier materials; PTM is the classic format. Both use relight's math and open in relight's OpenLIME viewer.")
             }
 
             Section {
@@ -100,11 +117,11 @@ struct ProjectView: View {
                     .disabled(!project.hasRTI)
                 Button { showCloth = true } label: { Label("Open in 3D cloth viewer", systemImage: "figure.stand.dress") }
                     .disabled(!project.hasRTI)
-                if let r = project.meta.rti {
+                if let r = project.meta.rti, !project.isImportedRTI {
                     Text(verbatim: "\(r.basis.rawValue.uppercased()) · \(r.width)×\(r.height) · \(r.lightsUsed) lights · built in \(String(format: "%.1f", r.seconds)) s")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-            } header: { Text("3 · View") }
+            } header: { Text(project.isImportedRTI ? "View" : "3 · View") }
             .id("view")
 
             Section {
@@ -112,10 +129,12 @@ struct ProjectView: View {
                     Label("Share RTI (relight format + web viewer)", systemImage: "square.and.arrow.up")
                 }
                 .disabled(!project.hasRTI || exporting)
-                Button { export { try Exporter.exportCapture(project) } } label: {
-                    Label("Share photos + .lp file for RelightLab", systemImage: "square.and.arrow.up.on.square")
+                if !project.isImportedRTI {
+                    Button { export { try Exporter.exportCapture(project) } } label: {
+                        Label("Share photos + .lp file for RelightLab", systemImage: "square.and.arrow.up.on.square")
+                    }
+                    .disabled(project.meta.frames.isEmpty || exporting)
                 }
-                .disabled(project.meta.frames.isEmpty || exporting)
                 if exporting { ProgressView() }
             } header: { Text("Export") } footer: {
                 Text("Projects are also in the Files app under On My iPhone › relightCam › Projects.")

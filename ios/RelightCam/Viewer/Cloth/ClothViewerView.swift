@@ -21,6 +21,10 @@ extension Project {
         if let o = override, o > 0 {
             return (SIMD2(Float(o), Float(o) * aspect), "set by hand")
         }
+        if let mm = meta.pixelSizeMM, mm > 0 {
+            let w = Float(Double(fw) * mm / 1000)
+            return (SIMD2(w, w * aspect), "from the imported RTI")
+        }
         if let d = meta.sphereDiameterMM, d > 0, let s = meta.sphere, s.r > 0 {
             let w = Float(Double(fw) * d / (2 * s.r) / 1000)
             return (SIMD2(w, w * aspect), String(format: "from the %.0f mm sphere", d))
