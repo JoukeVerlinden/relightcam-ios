@@ -107,6 +107,8 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   strip.begin();
   allOff();
+  delay(3000);  // time to open the serial monitor after an upload or reset
+  Serial.println("relightCam dome: starting Bluetooth");
 
   if (!BLE.begin()) {
     // usually old ESP32 firmware: Arduino IDE > Tools > Firmware Updater
@@ -132,4 +134,12 @@ void setup() {
 
 void loop() {
   BLE.poll();
+  // until the phone connects, say so every 5 s (the start-up message is easy to miss)
+  static unsigned long lastStatus = 0;
+  if (!BLE.connected() && millis() - lastStatus > 5000) {
+    lastStatus = millis();
+    Serial.print("advertising as \"");
+    Serial.print(DOME_NAME);
+    Serial.println("\", waiting for relightCam");
+  }
 }
