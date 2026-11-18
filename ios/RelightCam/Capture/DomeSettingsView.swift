@@ -9,6 +9,9 @@ struct DomeSettingsView: View {
     @State private var importingLights = false
     @State private var lightsError: String?
 
+    /// light time steps: 10 ms up to 100 ms, then 50 ms up to 2 s
+    static let lightSteps = Array(stride(from: 0, through: 100, by: 10)) + Array(stride(from: 150, through: 2000, by: 50))
+
     var body: some View {
         NavigationStack {
             Form {
@@ -65,7 +68,13 @@ struct DomeSettingsView: View {
                         Text("Brightness: \(Int((Double(dome.velocity) / 127 * 100).rounded())) %")
                         Slider(value: Binding(get: { Double(dome.velocity) }, set: { dome.velocity = Int($0) }), in: 1...127)
                     }
-                    Stepper("Light before each photo: \(dome.settleMS) ms", value: $dome.settleMS, in: 0...2000, step: 50)
+                    Stepper {
+                        Text("Light before each photo: \(dome.settleMS) ms")
+                    } onIncrement: {
+                        if let v = Self.lightSteps.first(where: { $0 > dome.settleMS }) { dome.settleMS = v }
+                    } onDecrement: {
+                        if let v = Self.lightSteps.last(where: { $0 < dome.settleMS }) { dome.settleMS = v }
+                    }
                 } header: {
                     Text("LEDs")
                 } footer: {

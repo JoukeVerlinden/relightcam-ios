@@ -21,7 +21,8 @@ CC 123 still ends dark. It never lights two LEDs at once.
 For each LED *n* from 0 to *count* − 1:
 
 1. Note On *n*.
-2. Keep it lit for the light time (default 200 ms, settable 0–2000 ms in steps of 50 ms).
+2. Keep it lit for the light time (default 200 ms; settable in steps of 10 ms up to 100 ms, then 50 ms up
+   to 2 s). Even at 0–30 ms the photo stays correct, because step 3 still waits for a fully lit frame.
 3. Wait for a camera frame whose exposure started after step 2 (frame timestamp ≥ now + exposure
    time), so the whole frame is lit by LED *n*. At most one photo is still being written at that
    point, so the camera never runs out of buffers.
