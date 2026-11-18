@@ -8,6 +8,21 @@ authors:
   - family-names: Verlinden
     given-names: Jouke
     affiliation: University of Antwerp
+  - family-names: Verheule
+    given-names: Tuur
+    affiliation: University of Antwerp
+  - family-names: Meers
+    given-names: Mans
+    affiliation: University of Antwerp
+  - family-names: Røe
+    given-names: Margrete
+    affiliation: University of Antwerp
+  - family-names: Grootjans
+    given-names: Andreas
+    affiliation: University of Antwerp
+  - family-names: de Klein
+    given-names: Aukje
+    affiliation: University of Antwerp
 repository-code: "https://github.com/JoukeVerlinden/relightcam-ios"
 url: "https://github.com/JoukeVerlinden/relightcam-ios/tree/relightcam/ios"
 license: GPL-3.0-or-later

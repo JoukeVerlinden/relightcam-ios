@@ -233,8 +233,9 @@ Simulator test hooks (launch arguments):
 
 ## How to cite
 
-Verlinden, J. (2026). *relightCam: on-device RTI capture, processing and cloth visualisation for iPhone*
-(Version 1.1). Zenodo. https://doi.org/10.5281/zenodo.24351636
+Verlinden, J., Verheule, T., Meers, M., Røe, M., Grootjans, A., & de Klein, A. (2026). *relightCam:
+on-device RTI capture, processing and cloth visualisation for iPhone* (Version 1.1). Zenodo.
+https://doi.org/10.5281/zenodo.24351636
 
 That DOI always points to the latest version; version 1.1 itself is
 [10.5281/zenodo.24351637](https://doi.org/10.5281/zenodo.24351637). GitHub's "Cite this repository"
