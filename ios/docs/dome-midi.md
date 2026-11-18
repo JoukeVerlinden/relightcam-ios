@@ -53,15 +53,21 @@ the Library Manager: Adafruit NeoPixel, ArduinoBLE, MIDI Library (FortySevenEffe
 (lathoub). The usual NeoPixel advice applies: a separate 5 V supply for the strip, a common ground with
 the Arduino, a 300–500 Ω resistor in the data line and a large capacitor across the strip's supply.
 
-The sketch hasn't been compiled or run yet. If the board doesn't show up in the app's Bluetooth list,
-update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools › Firmware Updater).
+The sketch compiles for the UNO R4 WiFi (core 1.6.0, BLE-MIDI 2.2, ArduinoBLE 2.1: 33 % of flash) but
+hasn't run with a strip yet. BLE-MIDI 2.2's ArduinoBLE backend needs a small workaround, which the sketch
+contains (two `using` lines before the backend include). If the board doesn't show up in the app's
+Bluetooth list, update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools › Firmware Updater).
 
-**Wired to the iPhone (USB MIDI):**
+**Why not over the USB cable?** The UNO R4 can be a USB keyboard (HID) but not a USB MIDI device: its
+core (1.6.0) builds TinyUSB with the MIDI class switched off (`CFG_TUD_MIDI 0`), the USB descriptor is
+fixed in the core, and the MIDIUSB library doesn't support the R4. The cable can still power the board
+from the phone; the MIDI goes over Bluetooth.
+
+**Boards that can be wired:**
 [`../dome/relightcam_dome_usb/relightcam_dome_usb.ino`](../dome/relightcam_dome_usb/relightcam_dome_usb.ino)
-does the same over USB with the MIDIUSB library. The board then appears in the app's dome row as soon as
-it is plugged in, with no pairing. An iPhone with Lightning needs the Lightning to USB 3 Camera Adapter.
-The phone powers the board; with one LED lit at a time that is usually enough, but a strip on its own
-5 V supply is safer. This variant hasn't been compiled either: check that MIDIUSB builds for the R4.
+does the same over USB MIDI with the MIDIUSB library, for a Leonardo, Micro or Pro Micro (ATmega32U4) or
+a SAMD board. It compiles for the Leonardo. The board appears in the app's dome row as soon as it is
+plugged in, with no pairing. An iPhone with Lightning needs the Lightning to USB 3 Camera Adapter.
 
 ## Testing without a dome
 

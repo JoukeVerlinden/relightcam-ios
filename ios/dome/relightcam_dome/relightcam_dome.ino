@@ -12,10 +12,15 @@
 // In relightCam: capture screen > interval menu > Dome > dome row > Connect a Bluetooth MIDI device,
 // pick "relightCam dome". The board's LED (L) is on while connected.
 //
-// Untested sketch: check the pixel order (NEO_GRBW) and the LED count against your strip.
+// Compiles for the UNO R4 WiFi (core 1.6.0, BLE-MIDI 2.2, ArduinoBLE 2.1); not yet run with a strip.
+// Check the pixel order (NEO_GRBW) and the LED count against your strip. The USB cable can stay in the
+// phone for power: the R4 can't be a USB MIDI device, so the MIDI goes over Bluetooth.
 
 #include <Adafruit_NeoPixel.h>
 #include <BLEMIDI_Transport.h>
+// BLE-MIDI 2.2's ArduinoBLE backend uses these two names outside the library's namespace
+using BLEMIDI_NAMESPACE::SERVICE_UUID;
+using BLEMIDI_NAMESPACE::CHARACTERISTIC_UUID;
 #include <hardware/BLEMIDI_ArduinoBLE.h>
 
 const int LED_PIN = 6;

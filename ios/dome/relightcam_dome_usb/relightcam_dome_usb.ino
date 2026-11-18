@@ -1,5 +1,8 @@
-// relightCam light dome controller, USB MIDI variant (Arduino wired to the iPhone)
-// Board: Arduino UNO R4 WiFi. LEDs: WS2812B-style RGBW strip (NeoPixel, GRBW order) on pin 6.
+// relightCam light dome controller, USB MIDI variant (controller wired to the iPhone)
+// For boards that can be a USB MIDI device with the MIDIUSB library: Arduino Leonardo, Micro,
+// Pro Micro (ATmega32U4) and the SAMD boards. NOT the UNO R4: its core has USB MIDI switched off, so
+// use the Bluetooth sketch (relightcam_dome) there.
+// LEDs: WS2812B-style RGBW strip (NeoPixel, GRBW order) on pin 6.
 // The board appears on the iPhone as a USB MIDI device; relightCam switches the LEDs over CoreMIDI:
 //
 //   channel 1, LED n (counted from 0) = MIDI note n
@@ -10,8 +13,8 @@
 // Libraries (Arduino IDE > Library Manager): Adafruit NeoPixel, MIDIUSB.
 // In relightCam: capture screen > interval menu > Dome. The board shows up in the dome row by itself.
 //
-// Untested sketch: check that MIDIUSB builds for your board, the pixel order (NEO_GRBW) and the LED count.
-// The Bluetooth variant (relightcam_dome) works the same way without a cable.
+// Compiles for the Leonardo (arduino:avr:leonardo); not yet run with a strip. Check the pixel order
+// (NEO_GRBW) and the LED count.
 
 #include <Adafruit_NeoPixel.h>
 #include <MIDIUSB.h>
