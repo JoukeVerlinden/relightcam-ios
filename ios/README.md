@@ -194,7 +194,10 @@ swiftc RelightCam/Capture/DomeMIDI.swift RelightCam/Core/LightPositions.swift /t
   default .lp (24 LEDs) and checks .lp parsing (line ends, comments, errors) and importing a custom file.
 
 Simulator test hooks (launch arguments):
-- RTI import (Debug builds): `-import-rti <zip or folder>` imports it as the menu does.
+- RTI import (Debug builds): `-import-rti <zip or folder>` imports it as the menu does (a relative path is
+  taken inside the app's Documents folder, so files copied to a phone with `devicectl device copy to
+  --domain-type appDataContainer` can be used; `../tmp/…` reaches the app's tmp folder) and prints
+  `[import]` and `[rti]` lines.
 - Pipeline and screens: `-autorun` / `-autorun-textile` (demo → detect → HSH build), `-open-viewer`,
   `-open-sphere`, `-open-capture`, `-open-cloth`, `-scroll-view`.
 - How it works and credits: `-open-help`, `-scroll-help`, `-open-credits`, `-open-license`.

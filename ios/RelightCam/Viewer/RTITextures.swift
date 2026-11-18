@@ -51,6 +51,9 @@ enum RTITextures {
             cb.commit()
             cb.waitUntilCompleted()
         }
+        #if DEBUG
+        print("[rti] viewer loaded \(info.type) \(W)×\(H), \(k) planes from \(dir.deletingLastPathComponent().lastPathComponent)")
+        #endif
         return RTITextureSet(info: info, planes: planes, normals: normals)
     }
 

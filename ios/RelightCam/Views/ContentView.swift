@@ -84,7 +84,12 @@ struct ContentView: View {
             if args.contains("-open-help") { showHelp = true }
             #if DEBUG
             // test hook -import-rti <path>: import an RTI zip or folder as the menu does
-            if let i = args.firstIndex(of: "-import-rti"), i + 1 < args.count { await importRTI(URL(fileURLWithPath: args[i + 1])) }
+            // (a relative path is taken inside the app's Documents folder, for testing on a phone)
+            if let i = args.firstIndex(of: "-import-rti"), i + 1 < args.count {
+                let a = args[i + 1]
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                await importRTI(a.hasPrefix("/") ? URL(fileURLWithPath: a) : docs.appendingPathComponent(a))
+            }
             #endif
         }
         .alert("Something went wrong", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
@@ -157,6 +162,9 @@ struct ContentView: View {
         busy = nil
         switch result {
         case .success(let info):
+            #if DEBUG
+            print("[import] \(url.lastPathComponent): \(info.type) \(info.width)×\(info.height), \(info.nplanes) planes → project “\(p.meta.name)”")
+            #endif
             p.meta.rti = RTIMeta(basis: info.basis ?? .ptm, width: info.width, height: info.height,
                                  lightsUsed: (info.lights?.count ?? 0) / 3, date: Date(), seconds: 0)
             p.meta.frameWidth = info.width
@@ -165,6 +173,9 @@ struct ContentView: View {
             p.save()
             path = [p]
         case .failure(let e):
+            #if DEBUG
+            print("[import] \(url.lastPathComponent) refused: \(e.localizedDescription)")
+            #endif
             store.delete(p)
             errorText = e.localizedDescription
         }
