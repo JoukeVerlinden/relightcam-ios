@@ -21,7 +21,7 @@ CC 123 still ends dark. It never lights two LEDs at once.
 For each LED *n* from 0 to *count* − 1:
 
 1. Note On *n*.
-2. Wait the settle time (default 60 ms, settable 0–1000 ms).
+2. Keep it lit for the light time (default 200 ms, settable 0–2000 ms in steps of 50 ms).
 3. Wait for a camera frame whose exposure started after step 2 (frame timestamp ≥ now + exposure
    time), so the whole frame is lit by LED *n*. At most one photo is still being written at that
    point, so the camera never runs out of buffers.
@@ -29,8 +29,8 @@ For each LED *n* from 0 to *count* − 1:
 5. Note Off *n*.
 
 A run starts and ends with all LEDs off, and stops (all off) on Stop, when leaving the screen, or when
-the camera stops delivering frames. At 30 fps one LED takes about 0.15–0.25 s, so 55 LEDs take
-roughly 10–15 seconds.
+the camera stops delivering frames. With the default light time and 30 fps, one LED takes about
+0.3–0.4 s, so the current 24-LED dome takes roughly 8–10 seconds.
 
 Light directions still come from the shiny sphere, exactly as with a hand-held light. Because every
 frame records its LED, a later version can calibrate the dome once and reuse the directions.
@@ -39,8 +39,8 @@ frame records its LED, a later version can calibrate the dome once and reuse the
 
 1. Capture screen › interval menu (bottom left) › **Dome**.
 2. Tap the dome row › **Connect a Bluetooth MIDI device** and pick the dome (USB devices appear on
-   their own). Set the number of LEDs, brightness and settle time; **Light each LED in turn** checks
-   the wiring.
+   their own). Set the number of LEDs (default 24), brightness and the light time before each photo;
+   **Light each LED in turn** checks the wiring.
 3. The framing LED stays on while you frame: tap to focus, then **Lock**.
 4. Press the red button. The run shows "LED *n* of *count*"; the red square stops it.
 

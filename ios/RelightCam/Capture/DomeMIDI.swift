@@ -20,7 +20,7 @@ final class DomeMIDI {
     /// nil sends to every output
     var selectedOutput: MIDIUniqueID? { didSet { defaults.set(selectedOutput.map { Int($0) }, forKey: "dome.output") } }
     var ledCount: Int { didSet { defaults.set(ledCount, forKey: "dome.ledCount") } }
-    /// time between Note On and the start of the exposure that is saved
+    /// how long each LED is lit before the exposure that is saved starts (the "flash" time)
     var settleMS: Int { didSet { defaults.set(settleMS, forKey: "dome.settleMS") } }
     /// LED that stays on while framing, so focus and exposure can be set (0-based)
     var previewLED: Int { didSet { defaults.set(previewLED, forKey: "dome.previewLED") } }
@@ -39,8 +39,8 @@ final class DomeMIDI {
 
     init(clientName: String = "relightCam", defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        ledCount = (defaults.object(forKey: "dome.ledCount") as? Int) ?? 55
-        settleMS = (defaults.object(forKey: "dome.settleMS") as? Int) ?? 60
+        ledCount = (defaults.object(forKey: "dome.ledCount") as? Int) ?? 24
+        settleMS = (defaults.object(forKey: "dome.settleMS") as? Int) ?? 200
         previewLED = (defaults.object(forKey: "dome.previewLED") as? Int) ?? 0
         previewOn = (defaults.object(forKey: "dome.previewOn") as? Bool) ?? true
         velocity = (defaults.object(forKey: "dome.velocity") as? Int) ?? 127

@@ -37,11 +37,11 @@ struct DomeSettingsView: View {
                         Text("Brightness: \(Int((Double(dome.velocity) / 127 * 100).rounded())) %")
                         Slider(value: Binding(get: { Double(dome.velocity) }, set: { dome.velocity = Int($0) }), in: 1...127)
                     }
-                    Stepper("Wait after switching: \(dome.settleMS) ms", value: $dome.settleMS, in: 0...1000, step: 10)
+                    Stepper("Light before each photo: \(dome.settleMS) ms", value: $dome.settleMS, in: 0...2000, step: 50)
                 } header: {
                     Text("LEDs")
                 } footer: {
-                    Text("For each LED the app waits this long, then saves the first camera frame exposed entirely with the LED on.")
+                    Text("Each LED is lit this long before its photo, then the app saves the first camera frame exposed entirely under it and turns the LED off. Longer is steadier; shorter is faster.")
                 }
 
                 Section {

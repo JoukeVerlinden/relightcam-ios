@@ -37,7 +37,7 @@
 #endif
 
 const int LED_PIN = 6;
-const int NUM_LEDS = 55;
+const int NUM_LEDS = 24;  // LEDs on the strip (the current dome has 24)
 
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRBW + NEO_KHZ800);
 

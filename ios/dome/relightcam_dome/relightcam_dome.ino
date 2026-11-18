@@ -21,7 +21,7 @@
 #include <Adafruit_NeoPixel.h>
 
 const int LED_PIN = 6;
-const int NUM_LEDS = 55;
+const int NUM_LEDS = 24;  // LEDs on the strip (the current dome has 24)
 const char *DOME_NAME = "relightCam dome";
 const bool LOG = true;
 
