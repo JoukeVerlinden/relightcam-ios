@@ -56,6 +56,13 @@ the Arduino, a 300–500 Ω resistor in the data line and a large capacitor acro
 The sketch hasn't been compiled or run yet. If the board doesn't show up in the app's Bluetooth list,
 update the R4 WiFi's ESP32 firmware (Arduino IDE › Tools › Firmware Updater).
 
+**Wired to the iPhone (USB MIDI):**
+[`../dome/relightcam_dome_usb/relightcam_dome_usb.ino`](../dome/relightcam_dome_usb/relightcam_dome_usb.ino)
+does the same over USB with the MIDIUSB library. The board then appears in the app's dome row as soon as
+it is plugged in, with no pairing. An iPhone with Lightning needs the Lightning to USB 3 Camera Adapter.
+The phone powers the board; with one LED lit at a time that is usually enough, but a strip on its own
+5 V supply is safer. This variant hasn't been compiled either: check that MIDIUSB builds for the R4.
+
 ## Testing without a dome
 
 - `tools/dome_test.swift` (macOS) runs the sequence against a virtual MIDI device and checks the
