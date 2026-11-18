@@ -28,6 +28,9 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
     @ObservationIgnored private let bufferLock = NSLock()
     @ObservationIgnored private var latestBuffer: CVPixelBuffer?
     @ObservationIgnored private var latestPTS = CMTime.invalid
+    @ObservationIgnored private var frameCount = 0
+    /// light dome: what the last frame wait saw, for the message after a failed run
+    @ObservationIgnored private(set) var lastFrameWait = ""
     @ObservationIgnored private let ciContext = CIContext()
     @ObservationIgnored private var input: AVCaptureDeviceInput?
     @ObservationIgnored private let output = AVCaptureVideoDataOutput()
@@ -192,29 +195,44 @@ final class CameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDele
         bufferLock.lock()
         latestBuffer = pb
         latestPTS = pts
+        frameCount += 1
         bufferLock.unlock()
     }
 
-    private func newestFrameTime() -> CMTime {
+    private func newestFrame() -> (time: CMTime, count: Int) {
         bufferLock.lock()
         defer { bufferLock.unlock() }
-        return latestPTS
+        return (latestPTS, frameCount)
     }
 
     /// For the light dome: waits until a frame arrives whose exposure began after this call, so a light
     /// switched on before the call is in it. The timestamp may mark the start or the middle of the
-    /// exposure, so the exposure time is added to be safe. Returns false after `timeout` seconds.
+    /// exposure, so the exposure time is added to be safe. If the frame timestamps can't be compared with
+    /// the clock, the third frame that arrives after the call is used instead (by then the camera
+    /// pipeline holds no frame exposed before the call). Returns false after `timeout` seconds.
     @MainActor
     func waitForFreshFrame(timeout: Double = 3) async -> Bool {
         let clock = session.synchronizationClock ?? CMClockGetHostTimeClock()
-        let exposure = device?.exposureDuration ?? CMTime(value: 1, timescale: 30)
-        let after = CMTimeAdd(CMClockGetTime(clock), exposure.isValid ? exposure : CMTime(value: 1, timescale: 30))
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline && !Task.isCancelled {
-            let t = newestFrameTime()
-            if t.isValid && CMTimeCompare(t, after) >= 0 { return true }
+        var exposure = device?.exposureDuration ?? CMTime(value: 1, timescale: 30)
+        if !exposure.isValid { exposure = CMTime(value: 1, timescale: 30) }
+        let now = CMClockGetTime(clock)
+        let after = CMTimeAdd(now, exposure)
+        let start = newestFrame()
+        let began = Date()
+        while Date().timeIntervalSince(began) < timeout && !Task.isCancelled {
+            let f = newestFrame()
+            if f.time.isValid && CMTimeCompare(f.time, after) >= 0 { lastFrameWait = "ok"; return true }
+            if f.count - start.count >= 3 {
+                lastFrameWait = String(format: "used frame count (frame time %.3f s, clock %.3f s)",
+                                       CMTimeGetSeconds(f.time), CMTimeGetSeconds(now))
+                return true
+            }
             try? await Task.sleep(for: .milliseconds(4))
         }
+        let f = newestFrame()
+        lastFrameWait = String(format: "%d new frames in %.1f s; frame time %.3f s, clock %.3f s, exposure %.3f s",
+                               f.count - start.count, timeout, CMTimeGetSeconds(f.time),
+                               CMTimeGetSeconds(now), CMTimeGetSeconds(exposure))
         return false
     }
 

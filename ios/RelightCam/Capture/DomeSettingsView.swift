@@ -70,6 +70,25 @@ struct DomeSettingsView: View {
                 } footer: {
                     Text("LED 1 is MIDI note 0, LED 2 is note 1, and so on, on channel 1. Note On lights an LED (velocity = brightness), Note Off turns it off.")
                 }
+
+                Section {
+                    if dome.recent.isEmpty {
+                        Text("Nothing yet.").foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(dome.recent.suffix(30).reversed().enumerated()), id: \.offset) { _, line in
+                            Text(line).font(.caption2.monospaced()).textSelection(.enabled)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("Recent")
+                        Spacer()
+                        Button("Copy") { UIPasteboard.general.string = dome.recent.joined(separator: "\n") }
+                            .font(.caption).disabled(dome.recent.isEmpty)
+                    }
+                } footer: {
+                    Text("LEDs switched, camera frame waits and photos of the last runs, newest first.")
+                }
             }
             .navigationTitle("Light dome")
             .navigationBarTitleDisplayMode(.inline)

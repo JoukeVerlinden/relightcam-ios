@@ -29,6 +29,24 @@ final class DomeMIDI {
     var velocity: Int { didSet { defaults.set(velocity, forKey: "dome.velocity") } }
     private(set) var lit: Int?
     private(set) var lastError: String?
+    /// the last few dome events, shown in the dome settings to diagnose a run
+    private(set) var recent: [String] = []
+
+    func log(_ s: String) {
+        let t = Date()
+        let ms = Int(t.timeIntervalSince1970 * 1000) % 1000
+        recent.append(String(format: "%@.%03d %@", Self.clock.string(from: t), ms, s))
+        if recent.count > 80 { recent.removeFirst(recent.count - 80) }
+        #if DEBUG
+        print("[dome] \(recent.last!)")
+        #endif
+    }
+
+    private static let clock: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     static let maxLEDs = 128
 
@@ -51,7 +69,7 @@ final class DomeMIDI {
             }
         }
         if status == noErr { status = MIDIOutputPortCreate(client, "LEDs" as CFString, &port) }
-        if status != noErr { lastError = "CoreMIDI error \(status)" }
+        if status != noErr { lastError = "CoreMIDI error \(status)"; log(lastError!) }
         refresh()
     }
 
@@ -106,8 +124,9 @@ final class DomeMIDI {
     func ledOn(_ n: Int) {
         guard (0..<Self.maxLEDs).contains(n) else { return }
         if let l = lit, l != n { send(0x80 | channel, UInt8(l), 0) }
-        send(0x90 | channel, UInt8(n), UInt8(max(1, min(127, velocity))))
+        let reached = send(0x90 | channel, UInt8(n), UInt8(max(1, min(127, velocity))))
         lit = n
+        log("LED \(n + 1) on → \(reached) output\(reached == 1 ? "" : "s")")
     }
 
     func ledOff(_ n: Int) {
@@ -117,7 +136,8 @@ final class DomeMIDI {
     }
 
     func allOff() {
-        send(0xB0 | channel, 123, 0)
+        let reached = send(0xB0 | channel, 123, 0)
+        log("all off → \(reached) output\(reached == 1 ? "" : "s")")
         for n in 0..<min(max(ledCount, lit.map { $0 + 1 } ?? 0), Self.maxLEDs) { send(0x80 | channel, UInt8(n), 0) }
         lit = nil
     }
@@ -127,9 +147,11 @@ final class DomeMIDI {
         if previewOn { ledOn(min(previewLED, ledCount - 1)) } else if lit != nil { allOff() }
     }
 
-    private func send(_ status: UInt8, _ d1: UInt8, _ d2: UInt8) {
+    /// Sends one message; returns how many outputs it went to.
+    @discardableResult
+    private func send(_ status: UInt8, _ d1: UInt8, _ d2: UInt8) -> Int {
         let dests = targets
-        guard !dests.isEmpty else { return }
+        guard !dests.isEmpty else { return 0 }
         // MIDI 1.0 channel voice message as a Universal MIDI Packet (type 2, group 0)
         var word = UInt32(0x2) << 28 | UInt32(status) << 16 | UInt32(d1 & 0x7F) << 8 | UInt32(d2 & 0x7F)
         var list = MIDIEventList()
@@ -137,8 +159,9 @@ final class DomeMIDI {
         _ = MIDIEventListAdd(&list, MemoryLayout<MIDIEventList>.size, packet, 0, 1, &word)
         for d in dests {
             let s = MIDISendEventList(port, d, &list)
-            if s != noErr { lastError = "MIDI send failed (\(s))" }
+            if s != noErr { lastError = "MIDI send failed (\(s))"; log(lastError!) }
         }
+        return dests.count
     }
 
     private static func string(_ obj: MIDIObjectRef, _ prop: CFString) -> String? {
@@ -190,11 +213,14 @@ final class DomeMIDI {
             ledOn(n)
             try? await Task.sleep(for: .milliseconds(max(0, settleMS)))
             if Task.isCancelled { reason = .cancelled; break }
+            let t = Date()
             guard await waitLit() else { reason = Task.isCancelled ? .cancelled : .noFrames; break }
+            log("LED \(n + 1): frame after \(Int(Date().timeIntervalSince(t) * 1000)) ms")
             await shoot(n)
             ledOff(n)
         }
         allOff()
+        log("run ended: \(reason)")
         return reason
     }
 }

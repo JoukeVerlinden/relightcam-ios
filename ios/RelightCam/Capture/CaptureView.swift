@@ -123,6 +123,13 @@ struct CaptureView: View {
             hudTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in camera.refreshExposureText() }
             onScreen = true
             if domeMode { dome.refresh(); dome.showPreview() }
+            #if DEBUG
+            // test hook -dome-autostart: start a dome run after the camera has settled
+            if ProcessInfo.processInfo.arguments.contains("-dome-autostart") {
+                domeMode = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { if !running { startDome() } }
+            }
+            #endif
         }
         .onDisappear {
             onScreen = false
@@ -306,30 +313,37 @@ struct CaptureView: View {
         if !camera.isLocked { camera.setLocked(true) }
         running = true
         let count = dome.ledCount
+        dome.log("run started: \(count) LEDs, \(dome.settleMS) ms light, camera \(camera.exposureText)")
         domeTask = Task { @MainActor in
             // give the lock a moment to apply before the framing LED goes off
             try? await Task.sleep(for: .milliseconds(150))
+            var current = 0
             let reason = await dome.runSequence(
                 count: count,
                 waitLit: {
                     await camera.waitForSaves(max: 1)
-                    return await camera.waitForFreshFrame()
+                    let ok = await camera.waitForFreshFrame()
+                    if camera.lastFrameWait != "ok" { dome.log("frame wait: \(camera.lastFrameWait)") }
+                    return ok
                 },
                 shoot: { n in
                     if let name = shoot() {
                         var leds = project.meta.leds ?? [:]
                         leds[name] = n
                         project.meta.leds = leds
+                        dome.log("LED \(n + 1): photo \(name)")
+                    } else {
+                        dome.log("LED \(n + 1): no camera frame to save")
                     }
                 },
-                progress: { domeLED = $0 })
+                progress: { domeLED = $0; current = $0 })
             domeLED = nil
             running = false
             domeTask = nil
             switch reason {
             case .finished: domeMessage = "\(count) LEDs done. Tap Done to mark the sphere, or the red button to capture again."
             case .cancelled: domeMessage = "Stopped. The photos taken so far are kept."
-            case .noFrames: domeMessage = "The camera stopped delivering frames, so the run was stopped."
+            case .noFrames: domeMessage = "No camera frame arrived for LED \(current + 1), so the run was stopped (\(camera.lastFrameWait))."
             }
             if onScreen && domeMode { dome.showPreview() }
         }

@@ -32,6 +32,11 @@ A run starts and ends with all LEDs off, and stops (all off) on Stop, when leavi
 the camera stops delivering frames. With the default light time and 30 fps, one LED takes about
 0.3–0.4 s, so the current 24-LED dome takes roughly 8–10 seconds.
 
+On an iPhone (iJouke (2), real camera, simulated dome) the frame for each LED arrived 45–75 ms after
+the light time, so a 24-LED run took 6.5 s. If the timestamps can't be compared, the third frame after the
+light time is used instead. The dome settings' **Recent** section (with **Copy**) lists the LEDs switched
+and how many MIDI outputs each reached, the frame waits, the photos and why a run ended.
+
 Light directions still come from the shiny sphere, exactly as with a hand-held light. Because every
 frame records its LED, a later version can calibrate the dome once and reuse the directions.
 
@@ -85,6 +90,10 @@ Arduino, a 300–500 Ω resistor in the data line and a large capacitor across t
 
 - `tools/dome_test.swift` (macOS) runs the sequence against a virtual MIDI device and checks the
   order and timing of the messages (see the header for the command).
+- Debug builds accept `-dome-autostart` (with `-open-capture`): the capture screen starts a Dome run
+  after 4 s, and the dome log is printed to the console. With `-dome-virtual` this tests a full run on a
+  phone without a dome: `xcrun devicectl device process launch --device <id> --console -- <bundle id>
+  -autorun-textile -open-capture -dome-virtual -dome-autostart`.
 - Debug builds accept the launch argument `-dome-virtual`: the app then creates a "Simulated dome"
   MIDI output that logs every message (`[dome] on LED 3 velocity 127`) to the console, so the dome
   screens can be tried in the simulator. iOS only allows such a virtual MIDI device with the audio
