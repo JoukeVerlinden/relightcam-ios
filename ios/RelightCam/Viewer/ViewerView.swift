@@ -4,6 +4,40 @@ struct ViewerView: View {
     let project: Project
     @State private var model = ViewerModel()
     @State private var showControls = true
+    /// panel width from which the mode picker sits beside the light dome; grows with the text size
+    @ScaledMetric(relativeTo: .subheadline) private var sideBySideWidth: CGFloat = 340
+    @State private var panelWidth: CGFloat = 0
+
+    private var lightColumn: some View {
+        VStack(spacing: 6) {
+            LightIndicator(light: model.light)
+                .frame(width: 64, height: 64)
+                .onTapGesture { if model.tilt { model.recenter += 1 } }
+            Toggle(isOn: $model.tilt) {
+                Label("Tilt", systemImage: "iphone.gen3.radiowaves.left.and.right")
+            }
+            .toggleStyle(.button)
+            .font(.caption.bold())
+        }
+    }
+
+    private var modePicker: some View {
+        Picker("Mode", selection: $model.mode) {
+            ForEach(ViewerModel.Mode.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var gainRow: some View {
+        HStack {
+            Image(systemName: "sun.min")
+            // a modest ideal width, so the slider doesn't decide which panel layout fits
+            Slider(value: $model.gain, in: 0.5...3).frame(minWidth: 60, idealWidth: 100, maxWidth: .infinity)
+            Image(systemName: "sun.max")
+        }
+        .font(.caption)
+        .disabled(model.mode == .normals || model.mode == .shaded)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -15,31 +49,31 @@ struct ViewerView: View {
             }
             if showControls {
                 VStack(spacing: 10) {
-                    HStack(alignment: .center, spacing: 14) {
-                        VStack(spacing: 6) {
-                            LightIndicator(light: model.light)
-                                .frame(width: 64, height: 64)
-                                .onTapGesture { if model.tilt { model.recenter += 1 } }
-                            Toggle(isOn: $model.tilt) {
-                                Label("Tilt", systemImage: "iphone.gen3.radiowaves.left.and.right")
+                    // The four mode names fit next to the light dome on 402 pt iPhones (a 346 pt panel).
+                    // Narrower panels (iPhone mini and SE, the iPhone Duo's outer screen, large text) give the
+                    // picker a row of its own instead of cutting "Specular" short. ViewThatFits can't decide
+                    // this: the segmented control asks for more room than its labels need.
+                    Group {
+                        if panelWidth == 0 || panelWidth >= sideBySideWidth {
+                            HStack(alignment: .center, spacing: 14) {
+                                lightColumn
+                                VStack(alignment: .leading, spacing: 8) {
+                                    modePicker
+                                    gainRow
+                                }
                             }
-                            .toggleStyle(.button)
-                            .font(.caption.bold())
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            Picker("Mode", selection: $model.mode) {
-                                ForEach(ViewerModel.Mode.allCases) { Text($0.title).tag($0) }
+                        } else {
+                            VStack(spacing: 8) {
+                                modePicker
+                                HStack(alignment: .center, spacing: 14) {
+                                    lightColumn
+                                    gainRow
+                                }
                             }
-                            .pickerStyle(.segmented)
-                            HStack {
-                                Image(systemName: "sun.min")
-                                Slider(value: $model.gain, in: 0.5...3)
-                                Image(systemName: "sun.max")
-                            }
-                            .font(.caption)
-                            .disabled(model.mode == .normals || model.mode == .shaded)
                         }
                     }
+                    .frame(maxWidth: .infinity)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { panelWidth = $0 }
                     HStack {
                         Text(model.tilt
                              ? "Tilt the phone to move the light · tap the dome to re-center · pinch to zoom"

@@ -220,27 +220,19 @@ struct ClothViewerView: View {
                     }
                 }
             }
-            HStack(spacing: 10) {
-                Menu {
-                    Picker("Fabric", selection: $model.settings.material) {
-                        ForEach(ClothMaterial.allCases) { Text($0.title).tag($0) }
-                    }
-                } label: { chip(model.settings.material.title, "square.grid.3x3.square") }
-                if model.settings.support == .dressForm {
-                    Menu {
-                        Picker("Form", selection: $model.settings.form) {
-                            ForEach(FormPreset.allCases) { Text($0.title).tag($0) }
-                        }
-                    } label: { chip(model.settings.form.title, ClothSupport.dressSymbol) }
+            // Narrow screens put the tool picker under the fabric and form chips instead of cutting
+            // "1860s crinoline" short.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    HStack(spacing: 10) { clothChips }.fixedSize()
+                    Spacer(minLength: 0)
+                    toolPicker
                 }
-                Spacer(minLength: 0)
-                if model.settings.support != .board {
-                    Picker("Tool", selection: $model.tool) {
-                        ForEach(ClothTool.allCases) { Image(systemName: $0.symbol).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 130)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) { clothChips }.fixedSize()
+                    toolPicker
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(alignment: .top, spacing: 12) {
                 LightDomeControl(azimuth: $model.settings.lightAzimuth, elevation: $model.settings.lightElevation,
@@ -251,21 +243,17 @@ struct ClothViewerView: View {
                         ForEach(ClothLightMode.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    HStack(spacing: 8) {
-                        if !model.arMode {
-                        Menu {
-                            Picker("Tilt", selection: $model.settings.tiltMode) {
-                                ForEach(ClothTiltMode.allCases) { Text($0.title).tag($0) }
-                            }
-                            if model.settings.tiltMode != .off { Button("Re-center") { model.recenter += 1 } }
-                        } label: { chip(model.settings.tiltMode == .off ? "Tilt off" : "Tilt: \(model.settings.tiltMode.title)", "iphone.gen3.radiowaves.left.and.right") }
+                    // Narrow screens (iPhone mini and SE, the iPhone Duo's outer screen) put the slider under
+                    // the chips instead of cutting "Tilt off" short.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 8) { lightChips }.fixedSize()
+                            gainSlider
                         }
-                        Menu {
-                            Picker("View", selection: $model.mode) {
-                                ForEach(ViewerModel.Mode.allCases) { Text($0.title).tag($0) }
-                            }
-                        } label: { chip(model.mode.title, "eye") }
-                        Slider(value: $model.gain, in: 0.5...2.5)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) { lightChips }.fixedSize()
+                            gainSlider
+                        }
                     }
                 }
             }
@@ -298,6 +286,52 @@ struct ClothViewerView: View {
         case .pin: return "Tap the cloth to pin it · drag a point and let go on the form to pin it there · tap a pin to remove it."
         case .smooth: return "Stroke over the cloth to smooth it onto the form, like pressing it flat by hand."
         }
+    }
+
+    @ViewBuilder private var clothChips: some View {
+        Menu {
+            Picker("Fabric", selection: $model.settings.material) {
+                ForEach(ClothMaterial.allCases) { Text($0.title).tag($0) }
+            }
+        } label: { chip(model.settings.material.title, "square.grid.3x3.square") }
+        if model.settings.support == .dressForm {
+            Menu {
+                Picker("Form", selection: $model.settings.form) {
+                    ForEach(FormPreset.allCases) { Text($0.title).tag($0) }
+                }
+            } label: { chip(model.settings.form.title, ClothSupport.dressSymbol) }
+        }
+    }
+
+    @ViewBuilder private var toolPicker: some View {
+        if model.settings.support != .board {
+            Picker("Tool", selection: $model.tool) {
+                ForEach(ClothTool.allCases) { Image(systemName: $0.symbol).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 130)
+        }
+    }
+
+    @ViewBuilder private var lightChips: some View {
+        if !model.arMode {
+            Menu {
+                Picker("Tilt", selection: $model.settings.tiltMode) {
+                    ForEach(ClothTiltMode.allCases) { Text($0.title).tag($0) }
+                }
+                if model.settings.tiltMode != .off { Button("Re-center") { model.recenter += 1 } }
+            } label: { chip(model.settings.tiltMode == .off ? "Tilt off" : "Tilt: \(model.settings.tiltMode.title)", "iphone.gen3.radiowaves.left.and.right") }
+        }
+        Menu {
+            Picker("View", selection: $model.mode) {
+                ForEach(ViewerModel.Mode.allCases) { Text($0.title).tag($0) }
+            }
+        } label: { chip(model.mode.title, "eye") }
+    }
+
+    /// brightness; a modest ideal width, so the slider doesn't decide which layout fits
+    private var gainSlider: some View {
+        Slider(value: $model.gain, in: 0.5...2.5).frame(minWidth: 70, idealWidth: 100, maxWidth: .infinity)
     }
 
     private func chip(_ text: String, _ symbol: String) -> some View {
