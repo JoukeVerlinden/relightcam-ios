@@ -8,7 +8,7 @@ Texts and settings entered in App Store Connect › relightCam (app 6830881665).
 - Subtitle: Relightable images of textiles
 - Primary category: Photo & Video. Secondary: Education
 - Content rights: no third-party content
-- Age rating: 4+ (every questionnaire item answered None or No)
+- Age rating: 4+ (every questionnaire item answered None or No, including Shared Location and Dating and Relationships, which Apple added in late 2026; answered 19 November 2026)
 - Copyright: 2026 University of Antwerp
 
 ## Pricing and availability
