@@ -31,6 +31,20 @@ Fixed: on iOS 17 the dress form icon was missing in the 3D cloth viewer.
 
 Also new since 1.1: relightCam can run a light dome over a USB cable, so dome captures need no black ball; pinch to zoom with manual focus; and import of RTIs made with relight.
 
+## Version 1.3 (planned, after 1.2 is released)
+
+Chosen on 19 November 2026: the new icon ships in 1.3 rather than swapping the build of 1.2, so 1.2 keeps its place in the review queue. 1.3 is the version in the project (MARKETING_VERSION). It carries:
+- the new app icon (tools/make_icon.swift): two rings of dome LEDs from 60 pt up, one ring below, with dark and tinted versions;
+- no cut-off labels in the 2D and cloth viewers on narrow screens (375 pt iPhones, the iPhone Duo's outer screen);
+- the light dome in plain words in the app (no MIDI terms).
+The user wants feedback on these before pushing them to GitHub. To ship: create version 1.3 in App Store Connect once 1.2 is live, upload a build through Xcode Organizer, add the iPhone Duo screenshot ("relightCam App Store screenshots/iPhone Duo") if the Duo slot takes it, attach the build and submit. Description, screenshots and preview carry over from 1.2.
+
+### What's New in 1.3 (draft)
+
+A new icon: the light dome seen from above, one LED raking a gold lampas motif.
+
+Easier to read on small and folding iPhones: the viewer controls no longer cut labels short on narrower screens, and the light dome settings use plain words.
+
 ### Promotional text
 
 Capture an object under a moving light and relight it on your iPhone: in 2D, draped on a simulated 3D cloth, or in AR in your own room.
