@@ -23,13 +23,13 @@ Data Not Collected, published on 7 November 2026. Privacy policy URL: https://gi
 
 - Release: manual, after App Review approval
 - Version 1.1, build 2611181819 (1.0 / 2611042239 got a Guideline 2.1 information request; the version was renamed to 1.1 with the new build). Approved and released on 18 November 2026 (174 countries; China mainland excluded).
-- Version 1.2, build 2611182322: the iOS 17 dress form icon fix, plus new screenshots and an App Preview made from the screen recording of the dome capture. Submitted 18 November 2026, set to release automatically after approval (to all users at once). On 19 November, while waiting for review, the description was rewritten: a short pitch, the open-source lineage (relight by CNR-ISTI's Visual Computing Lab, OpenLIME, PTM from HP Labs, HSH), a "What you need" section that makes clear the black sphere is only needed with a hand-held lamp, and the dome marked as still in development.
+- Version 1.2, build 2611182322: the iOS 17 dress form icon fix, plus new screenshots and an App Preview made from the screen recording of the dome capture. Submitted 18 November 2026, set to release automatically after approval (to all users at once). On 19 November, while waiting for review, the description was rewritten: a short pitch, the open-source lineage (relight by CNR-ISTI's Visual Computing Lab, OpenLIME, PTM from HP Labs, HSH), a "What you need" section that makes clear the black sphere is only needed with a hand-held lamp, and the dome marked as still in development. Later that day, at the user's request, "How it works" was rewritten to lead with the dome and mention the black ball only once (for a hand-held lamp), the separate "What you need" section was dropped, and MIDI was taken out of What's New.
 
 ### What's New in 1.2
 
 Fixed: on iOS 17 the dress form icon was missing in the 3D cloth viewer.
 
-Also in relightCam 1.1: the app can drive a light dome over USB (an Arduino as a USB MIDI device), give dome photos their light directions from a relight .lp file so no sphere is needed, zoom by pinching with manual focus, and import RTIs in relight's web format.
+Also new since 1.1: relightCam can run a light dome over a USB cable, so dome captures need no black ball; pinch to zoom with manual focus; and import of RTIs made with relight.
 
 ### Promotional text
 
@@ -50,16 +50,11 @@ WHO IT'S FOR
 • Designers and makers who want to show how a fabric looks and drapes
 It works for any flat object too, such as coins, clay tablets, paintings, leather or paper.
 
-WHAT YOU NEED
-• An iPhone on a tripod, in a dark room
-• A light: a lamp you move by hand, or a light dome
-• A shiny black sphere, but only with a hand-held lamp: its highlight tells the app where the light was. A dome needs no sphere, because the app knows where each LED is. To view an existing RTI, you need nothing at all.
-
 HOW IT WORKS
-1. Capture. With a hand-held lamp, place the black sphere next to the object, take 30 to 60 photos and move the lamp between them. Focus, exposure and white balance are locked, and an interval timer takes the photos. With a light dome, connect the dome's Arduino to the iPhone with a USB cable: the app lights each LED in turn, takes one photo per LED and gives every photo its light direction from the dome's light positions. You can also import photos from Photos or Files, or try the demo capture of a silk lampas.
-2. Process. Without a dome, the app finds the light direction in every photo from the highlight on the sphere. It then fits a PTM or HSH relightable image on the phone. Enter the sphere's diameter to give the image its real size.
+1. Capture. Put the iPhone on a tripod in a dark room and take 30 to 60 photos, each lit from another direction. With a light dome, relightCam does the lighting itself: connect the dome with a USB cable, and it lights one LED after the other and takes a photo for each. Without a dome, move a lamp by hand between the photos while an interval timer takes them; a small glossy black ball beside the object then shows the app where the light came from. Focus, exposure and white balance stay locked. You can also import photos, or try the built-in demo.
+2. Process. relightCam works out the light direction of every photo and computes the relightable image (PTM or HSH) right on the phone.
 3. View. In the 2D viewer, drag, or tilt the phone, to move the light, with RTI, specular, shaded and normal-map modes. The 3D cloth viewer drapes the textile on a board, on historical dress forms (1770s panniers, 1860s crinoline, 1880s bustle, 1920s) or as free-hanging cloth, with silk, linen, wool and tapestry presets, bias cut, pins and tiling of a pattern repeat. In live AR, the simulated cloth hangs in your room with real gravity, lit from the phone itself, and you can walk around it.
-4. Share. Export an RTI with a web viewer (OpenLIME), the photos with a .lp light file for RelightLab, or a 3D model (USDZ). RTIs in relight's web format can be imported too.
+4. Share. Export an RTI with a web viewer (OpenLIME), the photos with a light file for RelightLab, or a 3D model (USDZ). RTIs in relight's web format can be imported too.
 
 BUILD YOUR OWN DOME
 A dome makes captures faster and easier to repeat. The University of Antwerp is developing an open-source light dome that you can build yourself, with laser-cut parts, an Arduino and affordable electronics. It is still in development: the Arduino code is already in the relightCam repository on GitHub, and the designs will follow.
