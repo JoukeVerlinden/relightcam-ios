@@ -15,6 +15,10 @@ Texts and settings entered in App Store Connect › relightCam (app 6830881665).
 
 Free ($0.00, base country United States), available in all 175 countries and regions. Public distribution, iPhone and iPad only: Mac (Designed for iPad) and Apple Vision Pro availability were switched off on 19 November 2026, because neither has a camera to capture with.
 
+## App Accessibility
+
+Published on 19 November 2026 for iPhone and iPad: Dark Interface only (checked in the simulator: lists and settings follow the system's dark mode; the viewers and capture screen are always dark). Not claimed yet: VoiceOver, Voice Control, Larger Text, Differentiate Without Color Alone, Sufficient Contrast, Reduced Motion; Captions and Audio Descriptions don't apply. The app has only a handful of accessibility labels, a few fixed text sizes and no Reduce Motion handling, so an accessibility pass comes once the features settle. Published support can be extended later but not unpublished.
+
 ## App Privacy
 
 Data Not Collected, published on 7 November 2026. Privacy policy URL: https://github.com/JoukeVerlinden/relightcam-ios/blob/relightcam/ios/PRIVACY.md. The app has no accounts, no analytics and no network access (see [PRIVACY.md](../PRIVACY.md)).
