@@ -13,7 +13,7 @@ Texts and settings entered in App Store Connect › relightCam (app 6830881665).
 
 ## Pricing and availability
 
-Free ($0.00, base country United States), available in all 175 countries and regions. Public distribution; also offered on Apple silicon Macs and Apple Vision Pro (the defaults).
+Free ($0.00, base country United States), available in all 175 countries and regions. Public distribution, iPhone and iPad only: Mac (Designed for iPad) and Apple Vision Pro availability were switched off on 19 November 2026, because neither has a camera to capture with.
 
 ## App Privacy
 

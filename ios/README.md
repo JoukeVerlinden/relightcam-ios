@@ -235,7 +235,8 @@ Simulator test hooks (launch arguments):
   lower the resolution if a build stops.
 - The dome needs a cable: USB-C iPhones (15 and later) take the Arduino on a plain USB-C cable; Lightning
   iPhones need Apple's Lightning to USB 3 Camera Adapter with a charger in it (not yet tested).
-- On Macs and Apple Vision Pro the app only imports and views RTIs: there is no back camera to capture with.
+- iPhone and iPad only: the App Store doesn't offer relightCam on Macs or Apple Vision Pro, which have no back camera
+  to capture with.
 
 ## How to cite
 
