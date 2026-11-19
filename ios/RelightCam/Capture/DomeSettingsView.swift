@@ -17,12 +17,18 @@ struct DomeSettingsView: View {
             Form {
                 Section {
                     if dome.outputs.isEmpty {
-                        Label("No MIDI device connected", systemImage: "exclamationmark.triangle")
+                        Label("No light dome connected", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.secondary)
                     }
-                    Picker("Send to", selection: $dome.selectedOutput) {
-                        Text("All MIDI outputs").tag(MIDIUniqueID?.none)
-                        ForEach(dome.outputs) { Text($0.name).tag(MIDIUniqueID?.some($0.id)) }
+                    if let name = dome.outputs.first?.name, dome.outputs.count == 1, dome.selectedOutput == nil {
+                        Label(name, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    }
+                    // only needed with more than one dome-like device (or a choice made earlier)
+                    if dome.outputs.count > 1 || dome.selectedOutput != nil {
+                        Picker("Send to", selection: $dome.selectedOutput) {
+                            Text("All devices").tag(MIDIUniqueID?.none)
+                            ForEach(dome.outputs) { Text($0.name).tag(MIDIUniqueID?.some($0.id)) }
+                        }
                     }
                 } header: {
                     Text("Dome controller")
@@ -78,7 +84,7 @@ struct DomeSettingsView: View {
                 } header: {
                     Text("LEDs")
                 } footer: {
-                    Text("Each LED is lit this long before its photo, then the app saves the first camera frame exposed entirely under it and turns the LED off. Longer is steadier; shorter is faster. LED 1 is MIDI note 0 on channel 1, LED 2 is note 1, and so on.")
+                    Text("Each LED is lit this long before its photo, then the app saves the first camera frame exposed entirely under it and turns the LED off. Longer is steadier; shorter is faster.")
                 }
 
                 Section {

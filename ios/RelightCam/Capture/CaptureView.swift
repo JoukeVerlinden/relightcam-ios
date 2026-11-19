@@ -232,7 +232,7 @@ struct CaptureView: View {
     private let hintText = "Tripod · dark room · glossy black sphere in view.\nPinch to zoom, tap to focus (or set focus with the ◎ slider), lock, then move a hand-held light around the object between shots: low and high, all directions, same distance."
 
     private var domeHint: String {
-        guard dome.hasOutput else { return "Light dome: no MIDI device yet. Connect the dome's Arduino to the iPhone with a USB cable." }
+        guard dome.hasOutput else { return "Light dome: not connected yet. Connect the dome to the iPhone with a USB cable." }
         let what = dome.useLights && dome.lights != nil
             ? "the object (no sphere needed: the light file gives the directions)" : "the object and the sphere"
         let lit = dome.previewOn ? " with LED \(dome.previewLED + 1) on" : ""
@@ -250,7 +250,7 @@ struct CaptureView: View {
         Button { showDomeSettings = true } label: {
             HStack(spacing: 8) {
                 Image(systemName: dome.hasOutput ? "light.recessed.fill" : "light.recessed")
-                Text(dome.hasOutput ? "\(dome.ledCount) LEDs · \(dome.outputSummary)" : "Light dome: no MIDI device")
+                Text(dome.hasOutput ? "\(dome.ledCount) LEDs · \(dome.outputSummary)" : "Light dome: not connected")
                     .font(.subheadline).lineLimit(1)
                 Spacer()
                 Image(systemName: "gearshape")

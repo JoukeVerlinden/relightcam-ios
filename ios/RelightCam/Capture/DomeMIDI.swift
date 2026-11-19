@@ -150,12 +150,12 @@ final class DomeMIDI {
     /// Name for the status line: the chosen output, or the outputs that "all" reaches.
     var outputSummary: String {
         if let id = selectedOutput {
-            return outputs.first { $0.id == id }?.name ?? "chosen output not connected"
+            return outputs.first { $0.id == id }?.name ?? "chosen device not connected"
         }
         switch outputs.count {
-        case 0: return "no MIDI device"
+        case 0: return "not connected"
         case 1: return outputs[0].name
-        default: return "\(outputs.count) MIDI outputs"
+        default: return "\(outputs.count) devices"
         }
     }
 

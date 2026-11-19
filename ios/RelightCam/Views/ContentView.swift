@@ -274,7 +274,7 @@ struct HelpView: View {
                     Text("3. Between clicks, move the light to a new spot. Keep it at the same distance (roughly 3–4× the object size). Go all the way around at several heights, from low raking light (~15°) to high (~75°). 30–60 photos is plenty.")
                 }
                 Section("Light dome (optional)") {
-                    Text("With a MIDI light dome, choose Dome in the capture screen's interval menu. Connect the dome's Arduino with a USB cable, frame with the framing LED on, tap Lock, then press the red button: relightCam lights each LED in turn and takes one photo per LED. The dome's light positions (a relight .lp file, the current 24-LED dome by default) give every photo its light direction, so no sphere is needed.")
+                    Text("With a light dome, choose Dome in the capture screen's interval menu. Connect the dome's Arduino with a USB cable, frame with the framing LED on, tap Lock, then press the red button: relightCam lights each LED in turn and takes one photo per LED. The dome's light positions (a relight .lp file, the current 24-LED dome by default) give every photo its light direction, so no sphere is needed.")
                 }
                 Section("Process") {
                     Text("Mark the sphere, detect the lights, build the RTI, then explore it: drag to move the light, or switch on Tilt and tilt the phone.")
